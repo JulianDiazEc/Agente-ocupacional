@@ -73,6 +73,39 @@ python -m src.cli export-narah data/processed/ \
   --output narah_import_$(date +%Y%m%d).xlsx
 ```
 
+### 6. Validación Manual y Ground Truth
+
+**Crear ground truth validado manualmente:**
+
+```bash
+# Validar una HC procesada
+python validate_ground_truth.py data/raw/HC_001.pdf data/processed/HC_001.json
+
+# Durante la validación interactiva:
+# - Cada campo se muestra con su contexto del PDF
+# - Presiona [C] para correcto, [E] para editar, [S] para saltar
+# - El progreso se guarda automáticamente
+# - Al finalizar, se genera JSON validado + reporte
+
+# Resultado:
+# data/labeled/HC_001.json  (ground truth validado)
+# data/labeled/HC_001_validation_report.txt  (estadísticas)
+```
+
+**Validar múltiples HCs para crear dataset de evaluación:**
+
+```bash
+# Validar las 10 HCs más representativas
+for i in {001..010}; do
+  python validate_ground_truth.py \
+    data/raw/HC_${i}.pdf \
+    data/processed/HC_${i}.json
+done
+
+# Ahora tienes 10 HCs validadas manualmente en data/labeled/
+# Úsalas para medir precisión real del sistema
+```
+
 ---
 
 ## 🎯 Casos de Uso Comunes
@@ -173,6 +206,48 @@ python analyze_batch.py --export tendencias.xlsx
 # - Hoja "Programas SVE": Qué programas se asignan más
 # - Hoja "Aptitud": Distribución de aptitudes laborales
 ```
+
+### Caso 6: Creación de Ground Truth para Evaluación
+
+**Escenario:** Necesitas medir la precisión real del sistema creando un dataset validado manualmente.
+
+```bash
+# 1. Seleccionar HCs representativas (variedad de tipos, empresas, diagnósticos)
+# Idealmente 10-20 HCs
+
+# 2. Procesar normalmente
+python -m src.cli batch data/raw/muestra/ --output data/processed/muestra/
+
+# 3. Validar manualmente cada una
+for pdf in data/raw/muestra/*.pdf; do
+  base_name=$(basename "$pdf" .pdf)
+  echo "Validando $base_name..."
+
+  python validate_ground_truth.py \
+    "data/raw/muestra/${base_name}.pdf" \
+    "data/processed/muestra/${base_name}.json"
+done
+
+# 4. Revisar reportes de validación
+cat data/labeled/*_validation_report.txt | grep "Precisión del sistema"
+
+# 5. Consolidar resultados
+echo "Precisión promedio del sistema:"
+grep "Precisión del sistema" data/labeled/*_report.txt | \
+  awk '{sum+=$4; count++} END {print sum/count "%"}'
+
+# 6. Identificar campos problemáticos
+echo "Campos más corregidos:"
+grep "Corregido:" data/labeled/*_report.txt | \
+  awk '{print $2}' | sort | uniq -c | sort -rn | head -10
+```
+
+**Beneficios:**
+
+- **Medir precisión real**: No solo confianza estimada, sino correcciones reales
+- **Identificar patrones de error**: Qué campos se equivocan sistemáticamente
+- **Mejorar prompts**: Usar correcciones para refinar el prompt de Claude
+- **Benchmarking**: Comparar versiones del sistema
 
 ---
 

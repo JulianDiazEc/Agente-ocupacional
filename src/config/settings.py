@@ -54,6 +54,10 @@ class Settings(BaseSettings):
         le=1.0,
         description="Temperatura para generación (0.0 = determinístico)"
     )
+    enable_prompt_caching: bool = Field(
+        default=True,
+        description="Habilitar prompt caching de Anthropic (reduce costos 90%)"
+    )
 
     # ===================================================================
     # PROCESAMIENTO
