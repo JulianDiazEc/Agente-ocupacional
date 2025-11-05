@@ -14,7 +14,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.config.schemas import HistoriaClinicaEstructurada
 from src.config.settings import get_settings
-from src.processors.prompts import get_extraction_prompt
+from src.processors.prompts import get_extraction_prompt, get_extraction_prompt_cached
 from src.processors.validators import validate_historia_completa
 from src.utils.helpers import safe_json_loads
 from src.utils.logger import get_logger
@@ -100,27 +100,56 @@ class ClaudeProcessor:
             context = {}
         context["archivo_origen"] = archivo_origen
 
-        # Generar prompt
-        prompt = get_extraction_prompt(
-            texto_extraido=texto_extraido,
-            context=context
-        )
-
-        logger.debug(f"Prompt generado: {len(prompt)} caracteres")
+        # Obtener settings para verificar si caching está habilitado
+        settings = get_settings()
 
         try:
-            # Llamar a Claude API
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
-            )
+            # Llamar a Claude API con o sin caching según configuración
+            if settings.enable_prompt_caching:
+                # Usar prompt caching para reducir costos 90%
+                system_blocks, user_message = get_extraction_prompt_cached(
+                    texto_extraido=texto_extraido,
+                    context=context
+                )
+
+                logger.debug(
+                    f"Prompt con cache generado: "
+                    f"{len(system_blocks)} bloques de sistema + "
+                    f"{len(user_message)} caracteres de mensaje"
+                )
+
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=self.max_tokens,
+                    temperature=self.temperature,
+                    system=system_blocks,  # System blocks cacheables
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": user_message  # Solo contenido variable
+                        }
+                    ]
+                )
+            else:
+                # Modo sin cache (backward compatibility)
+                prompt = get_extraction_prompt(
+                    texto_extraido=texto_extraido,
+                    context=context
+                )
+
+                logger.debug(f"Prompt sin cache generado: {len(prompt)} caracteres")
+
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=self.max_tokens,
+                    temperature=self.temperature,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ]
+                )
 
             # Extraer texto de la respuesta
             response_text = response.content[0].text

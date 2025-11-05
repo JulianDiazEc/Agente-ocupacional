@@ -242,8 +242,149 @@ Mantén todos los campos que no tienen errores.
 Solo modifica lo necesario para corregir los errores listados."""
 
 
+def get_extraction_prompt_cached(
+    texto_extraido: str,
+    schema_json: Dict[str, Any] | None = None,
+    context: Dict[str, str] | None = None
+) -> tuple[list[dict], str]:
+    """
+    Genera el prompt para extracción CON SOPORTE DE CACHING.
+
+    Separa el prompt en bloques cacheables (instrucciones + schema)
+    y contenido variable (texto del PDF).
+
+    Args:
+        texto_extraido: Texto extraído del PDF por Azure
+        schema_json: JSON Schema del modelo (opcional, se genera automáticamente)
+        context: Contexto adicional (nombre archivo, empresa, etc.)
+
+    Returns:
+        tuple[list[dict], str]: (system_blocks_con_cache, user_message)
+    """
+
+    # Generar schema si no se proporciona
+    if schema_json is None:
+        schema_json = HistoriaClinicaEstructurada.model_json_schema()
+
+    # Context adicional
+    context_str = ""
+    if context:
+        context_items = [f"- {k}: {v}" for k, v in context.items()]
+        context_str = "\n".join(context_items)
+
+    # BLOQUE 1: Instrucciones base (CACHEABLE)
+    instrucciones_base = f"""Eres un experto médico ocupacional especializado en la evaluación de Exámenes Médicos Ocupacionales (EMO) en Colombia. Tu tarea es analizar historias clínicas de EMO y extraer TODA la información estructurada con precisión clínica, sin filtrar ni omitir hallazgos.
+
+CONTEXTO:
+Los EMO son evaluaciones obligatorias según la Resolución 2346 de 2007 en Colombia. Sirven para determinar la aptitud laboral, detectar condiciones de salud relacionadas con el trabajo, y establecer recomendaciones preventivas.
+
+TIPOS DE EMO QUE PUEDES ENCONTRAR:
+- Preingreso: Evaluación antes de vincular al empleado
+- Periódico: Seguimiento de salud según exposición ocupacional
+- Post-incapacidad: Evaluación tras ausencia médica prolongada
+- Cambio de ocupación: Al cambiar de puesto/exposición
+- Retiro/Egreso: Al finalizar vínculo laboral
+
+REGLAS CRÍTICAS DE EXTRACCIÓN:
+
+1. DIAGNÓSTICOS (CIE-10):
+   - Formato EXACTO: Letra + 2 dígitos + punto + 1 dígito (ej: M54.5, J30.1, H52.0)
+   - Extrae TODOS los diagnósticos mencionados, sin excepción
+   - Diferencia diagnósticos principales vs hallazgos incidentales
+   - Identifica si son preexistentes o relacionados con el trabajo
+   - Si el formato CIE-10 es incorrecto o falta, extrae de todas formas y genera alerta
+
+2. FECHAS:
+   - Formato obligatorio: YYYY-MM-DD (ISO 8601)
+   - Fecha del EMO, fecha de exámenes paraclínicos, fechas de seguimiento
+   - Si solo encuentras mes/año, usa día 01 (ej: "marzo 2024" → "2024-03-01")
+   - Si la fecha es ambigua o ilegible, extrae lo que puedas y marca confianza baja
+
+3. HALLAZGOS CLÍNICOS - EXTRAER TODO SIN EXCEPCIÓN:
+   REGLA DE ORO: Eres un extractor de datos, NO un filtrador clínico.
+   Tu trabajo es documentar TODO lo que encuentres, incluso si parece menor o irrelevante.
+   El médico humano decidirá qué es importante.
+
+4. APTITUD LABORAL:
+   Busca EXPLÍCITAMENTE el concepto de aptitud. Valores posibles:
+   - "apto" / "apto_sin_restricciones"
+   - "apto_con_recomendaciones"
+   - "apto_con_restricciones"
+   - "no_apto_temporal"
+   - "no_apto_definitivo"
+   - "pendiente"
+   Si no está explícito, usa null y genera alerta.
+
+5. RECOMENDACIONES - SOLO LAS ESPECÍFICAS:
+   ✅ EXTRAER: Remisiones a especialistas, exámenes complementarios, inclusión SVE, restricciones con valores
+   ❌ NO EXTRAER: "Pausas activas", "Uso de EPP", "Mantener hábitos saludables"
+
+6. VALIDACIÓN Y ALERTAS:
+   Genera alertas cuando detectes:
+   a) INCONSISTENCIAS DIAGNÓSTICAS: Diagnóstico sin soporte en exámenes
+   b) DATOS FALTANTES CRÍTICOS: Diagnóstico sin código CIE-10, aptitud no definida
+   c) VALORES CRÍTICOS: PA ≥180/110, Glicemia ≥200, IMC <16 o >40
+   d) FORMATO INCORRECTO: Código CIE-10 erróneo, fechas no ISO
+
+7. DATOS FALTANTES:
+   - Si un campo no está en la HC, usa null
+   - NO inventes valores médicos
+   - Si algo es ambiguo, extráelo y marca confianza baja + alerta
+
+8. NIVEL DE CONFIANZA:
+   - 1.0: Dato explícito y claro
+   - 0.9: Dato explícito pero formato no estándar
+   - 0.7: Dato con jerga médica ambigua
+   - 0.5: Dato inferido de contexto
+   - 0.3: Dato parcialmente legible"""
+
+    # BLOQUE 2: JSON Schema (CACHEABLE)
+    schema_block = f"""SCHEMA JSON A SEGUIR:
+{json.dumps(schema_json, indent=2, ensure_ascii=False)}
+
+INSTRUCCIONES FINALES:
+1. Retorna ÚNICAMENTE un objeto JSON válido que cumpla el schema
+2. NO agregues texto explicativo fuera del JSON
+3. NO uses markdown code blocks (```json)
+4. Usa null para campos faltantes
+5. Genera alertas para todo lo que requiera revisión médica
+6. Calcula confianza global como promedio de confianzas individuales"""
+
+    # System blocks con cache control
+    system_blocks = [
+        {
+            "type": "text",
+            "text": instrucciones_base,
+            "cache_control": {"type": "ephemeral"}  # Cache por 5 minutos
+        },
+        {
+            "type": "text",
+            "text": schema_block,
+            "cache_control": {"type": "ephemeral"}  # Cache por 5 minutos
+        }
+    ]
+
+    # User message (contenido variable, NO se cachea)
+    context_header = ""
+    if context_str:
+        context_header = f"""INFORMACIÓN ADICIONAL DEL DOCUMENTO:
+{context_str}
+
+"""
+
+    user_message = f"""{context_header}TEXTO EXTRAÍDO DE LA HISTORIA CLÍNICA:
+==================================================
+{texto_extraido}
+==================================================
+
+RETORNA EL JSON AHORA:"""
+
+    return system_blocks, user_message
+
+
 __all__ = [
     "get_extraction_prompt",
+    "get_extraction_prompt_cached",
     "get_validation_prompt",
     "get_correction_prompt"
 ]
