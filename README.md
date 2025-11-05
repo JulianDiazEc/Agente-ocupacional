@@ -15,6 +15,7 @@ Transforma PDFs de historias clínicas (nativos o escaneados) en datos estructur
 - ✅ **Export Flexible**: JSON estructurado y Excel para análisis
 - ✅ **CLI Intuitivo**: Interfaz de línea de comandos con Rich (colores y progress bars)
 - ✅ **Batch Processing**: Procesamiento paralelo de múltiples historias clínicas
+- ✅ **Análisis de Calidad**: Script estadístico para evaluar calidad del procesamiento batch
 
 ---
 
@@ -199,6 +200,67 @@ python -m src.cli export-narah data/processed/ --output narah_import.xlsx
 
 ---
 
+#### 5. Analizar calidad del batch procesado
+
+**Nuevo:** Script de análisis estadístico para evaluar la calidad del procesamiento batch.
+
+```bash
+# Análisis básico (muestra en terminal)
+python analyze_batch.py
+
+# Análisis con export a Excel
+python analyze_batch.py --export estadisticas.xlsx
+
+# Analizar directorio personalizado
+python analyze_batch.py --dir ./custom_dir --export report.xlsx
+```
+
+**El análisis incluye:**
+
+- **Métricas generales**: Total de HCs, confianza promedio/mín/máx
+- **Alertas de validación**:
+  - Total por severidad (alta/media/baja)
+  - Top 5 tipos de alertas más comunes
+  - HCs con/sin alertas
+- **Campos con baja confianza**: Top 10 campos más afectados
+- **Tipos de EMO**: Distribución (preingreso, periódico, etc.)
+- **Diagnósticos CIE-10**:
+  - Top 10 más frecuentes
+  - Total y promedio por HC
+  - Relacionados con trabajo
+- **Aptitud laboral**: Distribución (apto, con restricciones, etc.)
+- **Programas SVE**: Top 5 programas más asignados
+- **Exámenes paraclínicos**: Distribución por tipo
+
+**Output en terminal:**
+
+El script usa Rich para mostrar tablas formateadas con colores en la terminal.
+
+**Export a Excel:**
+
+Genera archivo con 7 hojas:
+1. Resumen
+2. Confianza
+3. Alertas
+4. Diagnósticos
+5. Aptitud
+6. Programas SVE
+7. Exámenes
+
+**Ejemplo de uso típico:**
+
+```bash
+# 1. Procesar batch de HCs
+python -m src.cli batch data/raw/ --workers 5
+
+# 2. Analizar calidad del procesamiento
+python analyze_batch.py --export analisis_calidad.xlsx
+
+# 3. Revisar estadísticas y ajustar si es necesario
+```
+
+---
+
 ## 📊 Estructura de Datos (Schema)
 
 El sistema genera JSONs con la siguiente estructura:
@@ -361,6 +423,7 @@ narah-hc-processor/
 ├── pyproject.toml              # Configuración del proyecto
 ├── .env.example                # Template de variables de entorno
 ├── .gitignore
+├── analyze_batch.py            # Script de análisis estadístico de batch
 │
 ├── src/
 │   ├── cli.py                   # CLI principal
