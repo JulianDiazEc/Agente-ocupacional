@@ -6,10 +6,30 @@ las historias clínicas procesadas, incluyendo validaciones de negocio.
 """
 
 from datetime import date, datetime
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+def convert_to_bool(v: Any) -> bool:
+    """
+    Convierte valores comunes a booleano.
+
+    Usado para validar campos booleanos que pueden venir como strings desde Claude.
+    """
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        v_lower = v.lower().strip()
+        if v_lower in ('true', 'sí', 'si', 'yes', 'y', '1', 'activo', 'vigente'):
+            return True
+        if v_lower in ('false', 'no', 'n', '0', 'inactivo', 'resuelto'):
+            return False
+    if isinstance(v, (int, float)):
+        return bool(v)
+    # Si no se puede convertir, retornar True por defecto
+    return True
 
 
 class Diagnostico(BaseModel):
@@ -40,6 +60,12 @@ class Diagnostico(BaseModel):
         le=1.0,
         description="Nivel de confianza en la extracción (0.0 - 1.0)"
     )
+
+    @field_validator('relacionado_trabajo', mode='before')
+    @classmethod
+    def validate_relacionado_trabajo(cls, v) -> bool:
+        """Convierte valores comunes a booleano."""
+        return convert_to_bool(v)
 
     @field_validator('codigo_cie10')
     @classmethod
@@ -80,6 +106,12 @@ class Incapacidad(BaseModel):
         None,
         description="Código CIE-10 del diagnóstico que generó la incapacidad"
     )
+
+    @field_validator('prorroga', mode='before')
+    @classmethod
+    def validate_prorroga(cls, v) -> bool:
+        """Convierte valores comunes a booleano."""
+        return convert_to_bool(v)
 
     @model_validator(mode='after')
     def calcular_dias_totales(self) -> 'Incapacidad':
@@ -166,6 +198,12 @@ class Recomendacion(BaseModel):
         description="Prioridad de la recomendación"
     )
 
+    @field_validator('requiere_seguimiento', mode='before')
+    @classmethod
+    def validate_requiere_seguimiento(cls, v) -> bool:
+        """Convierte valores comunes a booleano."""
+        return convert_to_bool(v)
+
 
 class Remision(BaseModel):
     """Remisión a especialista médico."""
@@ -174,6 +212,12 @@ class Remision(BaseModel):
     requiere_seguimiento: bool = Field(default=True)
     fecha_planeada: Optional[date] = Field(None, description="Fecha planeada de consulta")
     observaciones: Optional[str] = None
+
+    @field_validator('requiere_seguimiento', mode='before')
+    @classmethod
+    def validate_requiere_seguimiento(cls, v) -> bool:
+        """Convierte valores comunes a booleano."""
+        return convert_to_bool(v)
 
 
 class DatosEmpleado(BaseModel):
@@ -220,6 +264,12 @@ class Antecedente(BaseModel):
     descripcion: str
     fecha_aproximada: Optional[str] = Field(None, description="Año o fecha aproximada")
     activo: bool = Field(default=True, description="Si el antecedente está activo/vigente")
+
+    @field_validator('activo', mode='before')
+    @classmethod
+    def validate_activo(cls, v) -> bool:
+        """Convierte valores comunes a booleano."""
+        return convert_to_bool(v)
 
 
 class Alerta(BaseModel):
@@ -366,6 +416,12 @@ class HistoriaClinicaEstructurada(BaseModel):
         None,
         description="Notas adicionales sobre el procesamiento"
     )
+
+    @field_validator('genera_reincorporacion', mode='before')
+    @classmethod
+    def validate_genera_reincorporacion(cls, v) -> bool:
+        """Convierte valores comunes a booleano."""
+        return convert_to_bool(v)
 
     @model_validator(mode='after')
     def validar_consistencia(self) -> 'HistoriaClinicaEstructurada':
