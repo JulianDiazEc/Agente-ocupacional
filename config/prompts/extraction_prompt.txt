@@ -1,0 +1,41 @@
+PROMPT MAESTRO PARA EXTRACCIÓN DE HISTORIAS CLÍNICAS OCUPACIONALES
+===========================================================================
+
+Este archivo contiene el prompt optimizado para Claude API.
+Es utilizado por src/processors/prompts.py como template base.
+
+El prompt se construye dinámicamente combinando:
+1. Este template base
+2. El texto extraído del PDF por Azure
+3. El JSON Schema de HistoriaClinicaEstructurada
+4. Contexto adicional (nombre archivo, empresa, etc.)
+
+IMPORTANTE:
+- Este archivo es solo de referencia
+- El prompt real se genera en src/processors/prompts.py
+- Cualquier modificación aquí debe reflejarse en prompts.py
+
+Para personalizar el prompt:
+1. Edite get_extraction_prompt() en src/processors/prompts.py
+2. Mantenga la estructura del schema JSON
+3. Pruebe con historias clínicas reales
+4. Valide que el output cumpla el schema Pydantic
+
+REGLAS CRÍTICAS:
+================
+
+1. COMPLETITUD: Extraer TODO sin filtrar
+2. FIDELIDAD: Copiar datos tal cual están
+3. ALERTAS: Señalar inconsistencias
+4. NO INTERPRETACIÓN: No decidir qué es relevante
+5. TRAZABILIDAD: Permitir validación médica
+
+CAMPOS OBLIGATORIOS:
+===================
+
+- diagnosticos: Lista completa con CIE-10
+- aptitud_laboral: Concepto médico ocupacional
+- alertas_validacion: Inconsistencias detectadas
+- confianza_extraccion: Nivel de certeza global
+
+Ver src/processors/prompts.py para implementación completa.

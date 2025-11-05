@@ -1,0 +1,219 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HistoriaClinicaEstructurada",
+  "description": "Schema principal de Historia Clínica Ocupacional estructurada",
+  "type": "object",
+  "properties": {
+    "id_procesamiento": {
+      "type": "string",
+      "description": "ID único del procesamiento"
+    },
+    "fecha_procesamiento": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp del procesamiento"
+    },
+    "archivo_origen": {
+      "type": "string",
+      "description": "Nombre del archivo PDF original"
+    },
+    "datos_empleado": {
+      "type": "object",
+      "properties": {
+        "nombre_completo": {"type": ["string", "null"]},
+        "documento": {"type": ["string", "null"]},
+        "tipo_documento": {"type": ["string", "null"], "enum": ["CC", "CE", "TI", "PEP", "PPT", "NIT", null]},
+        "fecha_nacimiento": {"type": ["string", "null"], "format": "date"},
+        "edad": {"type": ["integer", "null"], "minimum": 0, "maximum": 120},
+        "sexo": {"type": ["string", "null"], "enum": ["M", "F", "O", null]},
+        "cargo": {"type": ["string", "null"]},
+        "area": {"type": ["string", "null"]},
+        "empresa": {"type": ["string", "null"]},
+        "antiguedad_meses": {"type": ["integer", "null"], "minimum": 0},
+        "eps": {"type": ["string", "null"]},
+        "arl": {"type": ["string", "null"]}
+      }
+    },
+    "tipo_emo": {
+      "type": ["string", "null"],
+      "enum": ["preingreso", "periodico", "cambio_ocupacion", "post_incapacidad", "retiro", "seguimiento", null]
+    },
+    "fecha_emo": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Fecha del examen médico ocupacional"
+    },
+    "signos_vitales": {
+      "type": ["object", "null"],
+      "properties": {
+        "presion_arterial": {"type": ["string", "null"]},
+        "frecuencia_cardiaca": {"type": ["integer", "null"], "minimum": 40, "maximum": 200},
+        "frecuencia_respiratoria": {"type": ["integer", "null"], "minimum": 8, "maximum": 40},
+        "temperatura": {"type": ["number", "null"], "minimum": 35.0, "maximum": 42.0},
+        "saturacion_oxigeno": {"type": ["integer", "null"], "minimum": 70, "maximum": 100},
+        "peso_kg": {"type": ["number", "null"], "minimum": 20.0, "maximum": 300.0},
+        "talla_cm": {"type": ["number", "null"], "minimum": 100.0, "maximum": 250.0},
+        "imc": {"type": ["number", "null"], "minimum": 10.0, "maximum": 60.0}
+      }
+    },
+    "hallazgos_examen_fisico": {
+      "type": ["string", "null"],
+      "description": "Hallazgos relevantes del examen físico"
+    },
+    "antecedentes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": ["patologico", "quirurgico", "traumatologico", "ocupacional", "toxicologico", "alergico", "farmacologico", "gineco_obstetrico", "familiar"]
+          },
+          "descripcion": {"type": "string"},
+          "fecha_aproximada": {"type": ["string", "null"]},
+          "activo": {"type": "boolean", "default": true}
+        },
+        "required": ["tipo", "descripcion"]
+      }
+    },
+    "diagnosticos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "codigo_cie10": {
+            "type": "string",
+            "pattern": "^[A-Z]\\d{2}\\.\\d$",
+            "description": "Código CIE-10 en formato A00.0"
+          },
+          "descripcion": {"type": "string"},
+          "tipo": {"type": "string", "enum": ["principal", "secundario", "hallazgo"]},
+          "relacionado_trabajo": {"type": "boolean", "default": false},
+          "confianza": {"type": "number", "minimum": 0.0, "maximum": 1.0, "default": 1.0}
+        },
+        "required": ["codigo_cie10", "descripcion", "tipo"]
+      }
+    },
+    "incapacidades": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fecha_inicio": {"type": "string", "format": "date"},
+          "fecha_fin": {"type": "string", "format": "date"},
+          "dias_totales": {"type": ["integer", "null"], "minimum": 1},
+          "tipo": {"type": "string", "enum": ["general", "laboral", "accidente_trabajo", "enfermedad_laboral"]},
+          "prorroga": {"type": "boolean", "default": false},
+          "diagnostico_asociado": {"type": ["string", "null"]}
+        },
+        "required": ["fecha_inicio", "fecha_fin", "tipo"]
+      }
+    },
+    "examenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": ["laboratorio", "imagenologia", "funcional", "audiometria", "espirometria", "optometria", "electrocardiograma", "otro"]
+          },
+          "nombre": {"type": "string"},
+          "fecha": {"type": ["string", "null"], "format": "date"},
+          "resultado": {"type": ["string", "null"]},
+          "valor_numerico": {"type": ["number", "null"]},
+          "unidad": {"type": ["string", "null"]},
+          "rango_referencia": {"type": ["string", "null"]},
+          "hallazgos_clave": {"type": ["string", "null"]},
+          "interpretacion": {"type": ["string", "null"], "enum": ["normal", "alterado", "critico", null]}
+        },
+        "required": ["tipo", "nombre"]
+      }
+    },
+    "recomendaciones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": ["remision_especialista", "examen_complementario", "inclusion_sve", "tratamiento", "restriccion_laboral", "ajuste_ergonomico", "seguimiento"]
+          },
+          "descripcion": {"type": "string"},
+          "vigencia_meses": {"type": ["integer", "null"], "minimum": 1},
+          "requiere_seguimiento": {"type": "boolean", "default": false},
+          "fecha_seguimiento": {"type": ["string", "null"], "format": "date"},
+          "prioridad": {"type": "string", "enum": ["alta", "media", "baja"], "default": "media"}
+        },
+        "required": ["tipo", "descripcion"]
+      }
+    },
+    "remisiones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "especialidad": {"type": "string"},
+          "motivo": {"type": ["string", "null"]},
+          "requiere_seguimiento": {"type": "boolean", "default": true},
+          "fecha_planeada": {"type": ["string", "null"], "format": "date"},
+          "observaciones": {"type": ["string", "null"]}
+        },
+        "required": ["especialidad"]
+      }
+    },
+    "aptitud_laboral": {
+      "type": ["string", "null"],
+      "enum": ["apto", "apto_sin_restricciones", "apto_con_recomendaciones", "apto_con_restricciones", "no_apto_temporal", "no_apto_definitivo", "pendiente", null]
+    },
+    "restricciones_especificas": {
+      "type": ["string", "null"],
+      "description": "Descripción detallada de restricciones laborales específicas"
+    },
+    "programas_sve": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["dme", "ruido", "biologico", "psicosocial", "btx", "radiaciones_ionizantes", "quimico", "cardiovascular", "voz", "visual", "respiratorio"]
+      }
+    },
+    "genera_reincorporacion": {
+      "type": "boolean",
+      "default": false
+    },
+    "causa_reincorporacion": {
+      "type": ["string", "null"]
+    },
+    "confianza_extraccion": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "default": 0.0
+    },
+    "campos_con_baja_confianza": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "alertas_validacion": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": ["inconsistencia_diagnostica", "dato_faltante", "valor_critico", "formato_incorrecto", "evaluacion_incompleta"]
+          },
+          "severidad": {"type": "string", "enum": ["alta", "media", "baja"]},
+          "campo_afectado": {"type": "string"},
+          "descripcion": {"type": "string"},
+          "accion_sugerida": {"type": "string"}
+        },
+        "required": ["tipo", "severidad", "campo_afectado", "descripcion", "accion_sugerida"]
+      }
+    },
+    "notas_procesamiento": {
+      "type": ["string", "null"]
+    }
+  },
+  "required": ["archivo_origen"]
+}
