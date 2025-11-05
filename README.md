@@ -16,6 +16,7 @@ Transforma PDFs de historias clínicas (nativos o escaneados) en datos estructur
 - ✅ **CLI Intuitivo**: Interfaz de línea de comandos con Rich (colores y progress bars)
 - ✅ **Batch Processing**: Procesamiento paralelo de múltiples historias clínicas
 - ✅ **Análisis de Calidad**: Script estadístico para evaluar calidad del procesamiento batch
+- ✅ **Validación Manual**: Herramienta interactiva para crear ground truth y validar campos
 
 ---
 
@@ -261,6 +262,88 @@ python analyze_batch.py --export analisis_calidad.xlsx
 
 ---
 
+#### 6. Validar y crear ground truth
+
+**Nuevo:** Herramienta interactiva para validar manualmente historias clínicas y crear ground truth de alta calidad.
+
+```bash
+# Validar una HC procesada
+python validate_ground_truth.py data/raw/HC_001.pdf data/processed/HC_001.json
+
+# Con directorio de salida personalizado
+python validate_ground_truth.py HC_001.pdf HC_001.json --output data/labeled/
+```
+
+**Funcionalidad:**
+
+El validador muestra **cada campo del JSON** junto con el **contexto del PDF original**, permitiendo:
+
+- **[C]orrecto**: Marcar campo como válido
+- **[E]ditar**: Corregir el valor manualmente
+- **[S]altar**: Revisar más tarde
+- **[Q]uit**: Guardar progreso y salir
+
+**Interfaz interactiva:**
+
+- ✅ UI con Rich (colores, tablas, paneles)
+- ✅ Navegación simple con teclas
+- ✅ Progress tracking (campo X de Y)
+- ✅ Resalta campos con baja confianza en amarillo
+- ✅ Campos con alertas en rojo
+- ✅ Muestra contexto del PDF relevante
+
+**Campos validados (orden de prioridad):**
+
+1. Datos del empleado (nombre, documento, cargo, empresa)
+2. Tipo y fecha de EMO
+3. Aptitud laboral y restricciones
+4. Diagnósticos (CIE-10, descripción) - Top 3
+5. Exámenes (resultados, hallazgos) - Top 3
+6. Recomendaciones - Top 2
+
+**Output generado:**
+
+```
+data/labeled/
+├── HC_001.json                      # JSON validado (ground truth)
+└── HC_001_validation_report.txt    # Reporte detallado
+```
+
+**Reporte incluye:**
+
+- Estadísticas de validación
+- Precisión del sistema (% campos correctos)
+- Lista de todas las correcciones realizadas
+- Campos con baja confianza original
+- Alertas de validación original
+
+**Ejemplo de uso:**
+
+```bash
+# 1. Procesar HC
+python -m src.cli process data/raw/HC_001.pdf
+
+# 2. Validar manualmente
+python validate_ground_truth.py data/raw/HC_001.pdf data/processed/HC_001.json
+
+# Durante la validación:
+# - Revisa cada campo uno por uno
+# - Marca correctos o edita los incorrectos
+# - El progreso se guarda automáticamente
+
+# 3. Usar ground truth para evaluación
+# Ahora tienes data/labeled/HC_001.json validado manualmente
+```
+
+**Casos de uso:**
+
+- **Crear dataset de evaluación**: Validar 10-20 HCs para medir precisión real
+- **Identificar errores sistemáticos**: Ver qué campos se corrigen más frecuentemente
+- **Mejorar prompts**: Usar correcciones para ajustar el prompt de Claude
+- **Auditoría de calidad**: Revisar HCs críticas manualmente
+
+---
+
 ## 📊 Estructura de Datos (Schema)
 
 El sistema genera JSONs con la siguiente estructura:
@@ -424,6 +507,7 @@ narah-hc-processor/
 ├── .env.example                # Template de variables de entorno
 ├── .gitignore
 ├── analyze_batch.py            # Script de análisis estadístico de batch
+├── validate_ground_truth.py    # Herramienta de validación manual
 │
 ├── src/
 │   ├── cli.py                   # CLI principal
