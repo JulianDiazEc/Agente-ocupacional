@@ -3,6 +3,7 @@ Interfaz de línea de comandos (CLI) para procesamiento de historias clínicas.
 
 Comandos disponibles:
 - process: Procesar una HC individual
+- process-person: Procesar múltiples exámenes de una persona con consolidación automática
 - batch: Procesar múltiples HCs en batch
 - show: Ver resumen de HC procesada
 - evaluate: Validar contra ground truth
@@ -11,11 +12,13 @@ Comandos disponibles:
 """
 
 import json
+import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import click
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 
 from src.config.settings import get_settings
@@ -24,6 +27,10 @@ from src.exporters.json_exporter import JSONExporter, load_historia_from_json
 from src.extractors.azure_extractor import AzureDocumentExtractor
 from src.processors.claude_processor import ClaudeProcessor
 from src.utils.logger import get_logger
+
+# Importar funciones de consolidación
+sys.path.append(str(Path(__file__).parent.parent))
+from consolidate_person import consolidate_historias, print_summary
 
 console = Console()
 logger = get_logger(__name__)
@@ -142,6 +149,162 @@ def process(
         console.print(f"\n[bold red]Error:[/bold red] {e}")
         logger.exception("Error procesando historia clínica")
         raise click.Abort()
+
+
+@cli.command(name='process-person')
+@click.argument('pdf_files', nargs=-1, required=True, type=click.Path(exists=True))
+@click.option(
+    '--person-id',
+    '-p',
+    help='ID de la persona (documento, nombre, etc.) - usado para el nombre del archivo consolidado'
+)
+@click.option(
+    '--output',
+    '-o',
+    type=click.Path(),
+    help='Directorio de salida (default: data/processed/)'
+)
+@click.option(
+    '--show-result',
+    '-s',
+    is_flag=True,
+    help='Mostrar resumen del resultado consolidado'
+)
+def process_person(
+    pdf_files: tuple,
+    person_id: Optional[str],
+    output: Optional[str],
+    show_result: bool
+):
+    """
+    Procesa múltiples exámenes de una persona y los consolida automáticamente.
+
+    Ideal para cuando una persona tiene múltiples documentos (HC base, RX, Labs, etc.)
+    y necesitas un JSON unificado sin duplicados.
+
+    Ejemplo:
+        narah-hc process-person HC_juan.pdf RX_juan.pdf Labs_juan.pdf --person-id "12345678"
+        narah-hc process-person *.pdf -p "Juan Perez" --show-result
+    """
+    settings = get_settings()
+    output_dir = Path(output) if output else settings.processed_dir
+
+    pdf_paths = [Path(f) for f in pdf_files]
+
+    console.print(f"\n[bold cyan]🔄 Procesando {len(pdf_paths)} exámenes de una persona[/bold cyan]\n")
+
+    # Paso 1: Procesar todos los PDFs individualmente
+    console.print(Panel.fit(
+        "[bold]PASO 1/3:[/bold] Procesando documentos individuales",
+        border_style="cyan"
+    ))
+
+    extractor = AzureDocumentExtractor()
+    processor = ClaudeProcessor()
+    exporter = JSONExporter(output_dir)
+
+    historias_procesadas = []
+    json_paths = []
+
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+    ) as progress:
+        task = progress.add_task("Procesando PDFs...", total=len(pdf_paths))
+
+        for pdf_path in pdf_paths:
+            try:
+                # Extraer
+                extraction_result = extractor.extract(pdf_path)
+
+                if not extraction_result.success:
+                    console.print(f"[red]❌ Error en {pdf_path.name}: {extraction_result.error}[/red]")
+                    progress.update(task, advance=1)
+                    continue
+
+                # Procesar con Claude
+                historia = processor.process(
+                    texto_extraido=extraction_result.text,
+                    archivo_origen=pdf_path.name
+                )
+
+                # Exportar JSON individual
+                json_path = exporter.export(historia)
+                json_paths.append(json_path)
+
+                historias_procesadas.append(historia)
+                console.print(f"✅ {pdf_path.name} → {json_path.name}")
+
+            except Exception as e:
+                console.print(f"[red]❌ Error procesando {pdf_path.name}: {e}[/red]")
+                logger.exception(f"Error procesando {pdf_path.name}")
+
+            progress.update(task, advance=1)
+
+    if len(historias_procesadas) < 1:
+        console.print("\n[bold red]❌ No se pudo procesar ningún documento[/bold red]")
+        raise click.Abort()
+
+    console.print(f"\n✅ Procesados {len(historias_procesadas)}/{len(pdf_paths)} documentos\n")
+
+    # Paso 2: Consolidar
+    console.print(Panel.fit(
+        "[bold]PASO 2/3:[/bold] Consolidando exámenes",
+        border_style="cyan"
+    ))
+
+    try:
+        # Cargar JSONs procesados
+        historias_dict = []
+        for json_path in json_paths:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                historias_dict.append(json.load(f))
+
+        # Consolidar
+        consolidada = consolidate_historias(historias_dict)
+
+        console.print(f"✅ Consolidados {len(historias_dict)} documentos")
+
+    except Exception as e:
+        console.print(f"[red]❌ Error en consolidación: {e}[/red]")
+        logger.exception("Error consolidando historias")
+        raise click.Abort()
+
+    # Paso 3: Guardar consolidado
+    console.print(Panel.fit(
+        "[bold]PASO 3/3:[/bold] Guardando resultado consolidado",
+        border_style="cyan"
+    ))
+
+    # Determinar nombre del archivo consolidado
+    if person_id:
+        filename = f"{person_id}_consolidated.json"
+    else:
+        # Usar documento del empleado o primer archivo
+        documento = consolidada.get('datos_empleado', {}).get('documento', 'person')
+        filename = f"{documento}_consolidated.json"
+
+    consolidated_path = output_dir / filename
+
+    with open(consolidated_path, 'w', encoding='utf-8') as f:
+        json.dump(consolidada, f, indent=2, ensure_ascii=False)
+
+    console.print(f"💾 Guardado en: {consolidated_path}\n")
+
+    # Mostrar resumen
+    if show_result:
+        print_summary(consolidada)
+
+    console.print(Panel.fit(
+        f"[bold green]✅ COMPLETADO[/bold green]\n\n"
+        f"Documentos procesados: {len(historias_procesadas)}\n"
+        f"JSON consolidado: {consolidated_path.name}",
+        border_style="green"
+    ))
 
 
 @cli.command()
