@@ -255,6 +255,8 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Consolida múltiples historias clínicas en una sola.
 
+    Prioriza datos de HC completa/CMO sobre exámenes específicos para campos generales.
+
     Args:
         historias: Lista de historias clínicas a consolidar
 
@@ -264,22 +266,75 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
     if not historias:
         raise ValueError("No hay historias para consolidar")
 
-    # Usar la primera historia como base
-    consolidada = historias[0].copy()
+    # Separar HC completas/CMO de exámenes específicos
+    hcs_completas = [h for h in historias if h.get('tipo_documento_fuente') in ['hc_completa', 'cmo']]
+    examenes_especificos = [h for h in historias if h.get('tipo_documento_fuente') == 'examen_especifico']
 
-    # Merge de datos del empleado (tomar el más completo)
+    # Usar HC completa como base si existe, sino la primera
+    if hcs_completas:
+        consolidada = hcs_completas[0].copy()
+        # Tipo documento del consolidado
+        consolidada['tipo_documento_fuente'] = 'hc_completa'
+    else:
+        consolidada = historias[0].copy()
+
+    # Merge de datos del empleado - PRIORIZAR HC COMPLETA
     datos_empleado = {}
-    for historia in historias:
+
+    # Primero tomar de exámenes específicos (datos básicos)
+    for historia in examenes_especificos:
         empleado = historia.get('datos_empleado', {})
         for key, value in empleado.items():
-            if value is not None and value != "":
+            if value is not None and value != "" and value != "Empleado":
                 datos_empleado[key] = value
+
+    # Luego sobrescribir con datos de HC completas (más confiables)
+    for historia in hcs_completas:
+        empleado = historia.get('datos_empleado', {})
+        for key, value in empleado.items():
+            if value is not None and value != "" and value != "Empleado":
+                # Priorizar cargo específico sobre "Empleado" genérico
+                if key == 'cargo':
+                    if value and value.lower() not in ['empleado', 'trabajador', 'personal']:
+                        datos_empleado[key] = value
+                else:
+                    datos_empleado[key] = value
 
     consolidada['datos_empleado'] = datos_empleado
 
-    # Merge de signos vitales (tomar los más recientes)
-    # Asumiendo que el último archivo tiene los signos más recientes
-    consolidada['signos_vitales'] = historias[-1].get('signos_vitales', {})
+    # Merge de signos vitales - PRIORIZAR HC COMPLETA
+    signos_vitales = None
+    for historia in reversed(hcs_completas):  # Más reciente primero
+        sv = historia.get('signos_vitales')
+        if sv:
+            signos_vitales = sv
+            break
+
+    # Si no hay en HC, tomar de exámenes (poco probable pero posible)
+    if not signos_vitales:
+        for historia in reversed(examenes_especificos):
+            sv = historia.get('signos_vitales')
+            if sv:
+                signos_vitales = sv
+                break
+
+    consolidada['signos_vitales'] = signos_vitales
+
+    # Tipo EMO y fecha - PRIORIZAR HC COMPLETA
+    tipo_emo_encontrado = False
+    for historia in hcs_completas:
+        if historia.get('tipo_emo'):
+            consolidada['tipo_emo'] = historia['tipo_emo']
+            tipo_emo_encontrado = True
+            break
+
+    # Fecha EMO de HC completa
+    fecha_emo_encontrada = False
+    for historia in hcs_completas:
+        if historia.get('fecha_emo'):
+            consolidada['fecha_emo'] = historia['fecha_emo']
+            fecha_emo_encontrada = True
+            break
 
     # Merge inteligente de campos con lógica de deduplicación
     consolidada['diagnosticos'] = merge_diagnosticos(historias)
@@ -290,15 +345,26 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
     consolidada['remisiones'] = merge_remisiones(historias)
     consolidada['alertas_validacion'] = merge_alertas(historias)
 
-    # Tomar aptitud laboral de la evaluación más reciente
-    # (asumiendo que están ordenadas cronológicamente)
-    for historia in reversed(historias):
+    # Aptitud laboral - PRIORIZAR HC COMPLETA/CMO (no exámenes específicos)
+    aptitud_encontrada = False
+    for historia in reversed(hcs_completas):  # Más reciente primero
         if historia.get('aptitud_laboral'):
             consolidada['aptitud_laboral'] = historia['aptitud_laboral']
             consolidada['restricciones_especificas'] = historia.get('restricciones_especificas')
             consolidada['genera_reincorporacion'] = historia.get('genera_reincorporacion', False)
             consolidada['causa_reincorporacion'] = historia.get('causa_reincorporacion')
+            aptitud_encontrada = True
             break
+
+    # Si no hay aptitud en HC completas, tomar de cualquier fuente (fallback)
+    if not aptitud_encontrada:
+        for historia in reversed(historias):
+            if historia.get('aptitud_laboral'):
+                consolidada['aptitud_laboral'] = historia['aptitud_laboral']
+                consolidada['restricciones_especificas'] = historia.get('restricciones_especificas')
+                consolidada['genera_reincorporacion'] = historia.get('genera_reincorporacion', False)
+                consolidada['causa_reincorporacion'] = historia.get('causa_reincorporacion')
+                break
 
     # Programas SVE: unión de todos
     sve_set = set()

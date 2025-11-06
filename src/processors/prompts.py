@@ -37,6 +37,48 @@ def get_extraction_prompt(
 
     prompt = f"""Eres un experto médico ocupacional especializado en la evaluación de Exámenes Médicos Ocupacionales (EMO) en Colombia. Tu tarea es analizar historias clínicas de EMO y extraer TODA la información estructurada con precisión clínica, sin filtrar ni omitir hallazgos.
 
+PASO 0: CLASIFICACIÓN DEL DOCUMENTO (CRÍTICO)
+
+Primero, identifica el tipo de documento:
+
+1. "hc_completa" - Historia Clínica Ocupacional COMPLETA:
+   - Contiene: anamnesis, examen físico completo, antecedentes, diagnósticos, aptitud laboral
+   - Tiene secciones: datos demográficos, signos vitales, revisión por sistemas
+   - Es el documento PRINCIPAL de evaluación ocupacional
+
+2. "cmo" - Certificado Médico Ocupacional:
+   - Documento de conclusión con aptitud laboral y recomendaciones
+   - Puede tener resumen de diagnósticos y restricciones
+   - Generalmente más breve que HC completa
+
+3. "examen_especifico" - Examen Aislado (RX, Labs, Optometría, Espirometría, Audiometría, etc.):
+   - SOLO contiene resultados de UN examen específico
+   - NO tiene anamnesis completa ni examen físico general
+   - NO tiene signos vitales generales (PA, FC, FR, temperatura)
+   - NO tiene datos demográficos completos
+   - Ejemplos: Rayos X tórax, Laboratorios, Optometría, Visiometría, Espirometría, Audiometría
+
+REGLAS SEGÚN TIPO DE DOCUMENTO:
+
+SI tipo_documento_fuente = "examen_especifico":
+  ✅ EXTRAER SOLO:
+     - tipo_documento_fuente: "examen_especifico"
+     - tipo_emo: null (no es obligatorio en exámenes aislados)
+     - datos_empleado: solo documento/nombre si aparece explícitamente
+     - signos_vitales: null (no se esperan en exámenes específicos)
+     - examenes: [el examen específico con todos sus resultados y valores]
+     - diagnosticos: solo si el examen incluye interpretación diagnóstica
+
+  ❌ NO GENERAR ALERTAS POR:
+     - Falta de signos vitales
+     - Falta de datos demográficos completos (edad, sexo, EPS, ARL)
+     - Falta de tipo_emo explícito
+     - Falta de aptitud laboral
+
+SI tipo_documento_fuente = "hc_completa" O "cmo":
+  ✅ EXTRAER TODO según reglas normales
+  ✅ GENERAR alertas por datos faltantes
+
 CONTEXTO:
 Los EMO son evaluaciones obligatorias según la Resolución 2346 de 2007 en Colombia. Sirven para determinar la aptitud laboral, detectar condiciones de salud relacionadas con el trabajo, y establecer recomendaciones preventivas.
 
@@ -312,6 +354,48 @@ def get_extraction_prompt_cached(
 
     # BLOQUE 1: Instrucciones base (CACHEABLE)
     instrucciones_base = f"""Eres un experto médico ocupacional especializado en la evaluación de Exámenes Médicos Ocupacionales (EMO) en Colombia. Tu tarea es analizar historias clínicas de EMO y extraer TODA la información estructurada con precisión clínica, sin filtrar ni omitir hallazgos.
+
+PASO 0: CLASIFICACIÓN DEL DOCUMENTO (CRÍTICO)
+
+Primero, identifica el tipo de documento:
+
+1. "hc_completa" - Historia Clínica Ocupacional COMPLETA:
+   - Contiene: anamnesis, examen físico completo, antecedentes, diagnósticos, aptitud laboral
+   - Tiene secciones: datos demográficos, signos vitales, revisión por sistemas
+   - Es el documento PRINCIPAL de evaluación ocupacional
+
+2. "cmo" - Certificado Médico Ocupacional:
+   - Documento de conclusión con aptitud laboral y recomendaciones
+   - Puede tener resumen de diagnósticos y restricciones
+   - Generalmente más breve que HC completa
+
+3. "examen_especifico" - Examen Aislado (RX, Labs, Optometría, Espirometría, Audiometría, etc.):
+   - SOLO contiene resultados de UN examen específico
+   - NO tiene anamnesis completa ni examen físico general
+   - NO tiene signos vitales generales (PA, FC, FR, temperatura)
+   - NO tiene datos demográficos completos
+   - Ejemplos: Rayos X tórax, Laboratorios, Optometría, Visiometría, Espirometría, Audiometría
+
+REGLAS SEGÚN TIPO DE DOCUMENTO:
+
+SI tipo_documento_fuente = "examen_especifico":
+  ✅ EXTRAER SOLO:
+     - tipo_documento_fuente: "examen_especifico"
+     - tipo_emo: null (no es obligatorio en exámenes aislados)
+     - datos_empleado: solo documento/nombre si aparece explícitamente
+     - signos_vitales: null (no se esperan en exámenes específicos)
+     - examenes: [el examen específico con todos sus resultados y valores]
+     - diagnosticos: solo si el examen incluye interpretación diagnóstica
+
+  ❌ NO GENERAR ALERTAS POR:
+     - Falta de signos vitales
+     - Falta de datos demográficos completos (edad, sexo, EPS, ARL)
+     - Falta de tipo_emo explícito
+     - Falta de aptitud laboral
+
+SI tipo_documento_fuente = "hc_completa" O "cmo":
+  ✅ EXTRAER TODO según reglas normales
+  ✅ GENERAR alertas por datos faltantes
 
 CONTEXTO:
 Los EMO son evaluaciones obligatorias según la Resolución 2346 de 2007 en Colombia. Sirven para determinar la aptitud laboral, detectar condiciones de salud relacionadas con el trabajo, y establecer recomendaciones preventivas.
