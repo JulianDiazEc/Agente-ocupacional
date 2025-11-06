@@ -343,6 +343,10 @@ def validate_historia_completa(historia: HistoriaClinicaEstructurada) -> List[Al
     """
     Ejecuta todas las validaciones sobre una historia clínica.
 
+    Validaciones condicionales según tipo_documento_fuente:
+    - examen_especifico: Solo valida datos presentes (no genera alertas por falta de datos generales)
+    - hc_completa / cmo: Valida todos los campos esperados
+
     Args:
         historia: Historia clínica a validar
 
@@ -351,28 +355,51 @@ def validate_historia_completa(historia: HistoriaClinicaEstructurada) -> List[Al
     """
     alertas = []
 
-    # Validar diagnósticos
-    alertas.extend(CIE10Validator.validate_diagnosis_list(historia.diagnosticos))
+    # Determinar si es examen específico
+    es_examen_especifico = historia.tipo_documento_fuente == "examen_especifico"
 
-    # Validar fecha EMO
-    alertas.extend(DateValidator.validate_emo_date(historia.fecha_emo))
-
-    # Validar signos vitales
-    alertas.extend(ClinicalValueValidator.validate_vital_signs(historia.signos_vitales))
-
-    # Validar aptitud laboral
-    if historia.aptitud_laboral is None:
+    # Validar diagnósticos (siempre, pero solo alerta de faltantes si NO es examen específico)
+    if historia.diagnosticos:
+        # Si hay diagnósticos, validar formato
+        alertas.extend(CIE10Validator.validate_diagnosis_list(historia.diagnosticos))
+    elif not es_examen_especifico:
+        # Solo alertar de falta de diagnósticos si NO es examen específico
         alertas.append(
             Alerta(
                 tipo="dato_faltante",
                 severidad="alta",
-                campo_afectado="aptitud_laboral",
-                descripcion="No se encontró el concepto de aptitud laboral",
-                accion_sugerida="Solicitar al médico ocupacional que emita concepto de aptitud"
+                campo_afectado="diagnosticos",
+                descripcion="No se encontraron diagnósticos en la historia clínica",
+                accion_sugerida="Verificar que la HC contenga diagnósticos o que la extracción fue completa"
             )
         )
 
-    # Validar restricciones sin justificación
+    # Validar fecha EMO (solo si NO es examen específico)
+    if not es_examen_especifico:
+        alertas.extend(DateValidator.validate_emo_date(historia.fecha_emo))
+
+    # Validar signos vitales (solo si están presentes O si NO es examen específico)
+    if historia.signos_vitales:
+        # Si hay signos vitales, validar valores críticos
+        alertas.extend(ClinicalValueValidator.validate_vital_signs(historia.signos_vitales))
+    elif not es_examen_especifico:
+        # Opcional: alertar de falta de signos vitales solo en HC completa
+        pass  # No alertamos por ahora, puede ser normal en CMO
+
+    # Validar aptitud laboral (solo si NO es examen específico)
+    if not es_examen_especifico:
+        if historia.aptitud_laboral is None:
+            alertas.append(
+                Alerta(
+                    tipo="dato_faltante",
+                    severidad="alta",
+                    campo_afectado="aptitud_laboral",
+                    descripcion="No se encontró el concepto de aptitud laboral",
+                    accion_sugerida="Solicitar al médico ocupacional que emita concepto de aptitud"
+                )
+            )
+
+    # Validar restricciones sin justificación (siempre)
     if historia.restricciones_especificas and not historia.diagnosticos:
         alertas.append(
             Alerta(
@@ -384,7 +411,8 @@ def validate_historia_completa(historia: HistoriaClinicaEstructurada) -> List[Al
             )
         )
 
-    logger.info(f"Validación completa: {len(alertas)} alertas generadas")
+    tipo_doc = historia.tipo_documento_fuente
+    logger.info(f"Validación completa ({tipo_doc}): {len(alertas)} alertas generadas")
 
     return alertas
 

@@ -308,6 +308,16 @@ class HistoriaClinicaEstructurada(BaseModel):
     )
     archivo_origen: str = Field(..., description="Nombre del archivo PDF original")
 
+    # Tipo de documento fuente (para validaciones condicionales)
+    tipo_documento_fuente: Literal[
+        "hc_completa",          # Historia clínica ocupacional completa con anamnesis
+        "cmo",                  # Certificado médico ocupacional con aptitud
+        "examen_especifico"     # Examen aislado: RX, labs, optometría, espirometría, etc.
+    ] = Field(
+        default="hc_completa",
+        description="Tipo de documento procesado - determina qué campos son obligatorios"
+    )
+
     # Datos del empleado
     datos_empleado: DatosEmpleado = Field(default_factory=DatosEmpleado)
 
