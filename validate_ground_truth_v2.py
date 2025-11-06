@@ -44,14 +44,17 @@ RAZON_CATEGORIAS = {
 class ValidationSession:
     """Sesión de validación de ground truth."""
 
-    def __init__(self, pdf_path: Path, json_path: Path, output_dir: Path):
-        self.pdf_path = Path(pdf_path)
+    def __init__(self, json_path: Path, pdf_dir: Path, output_dir: Path):
         self.json_path = Path(json_path)
+        self.pdf_dir = Path(pdf_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.texto_pdf: str = ""
         self.historia_dict: Dict[str, Any] = {}
+
+        # Múltiples PDFs para consolidados
+        self.pdfs_texto: Dict[str, str] = {}  # {nombre_archivo: texto}
+        self.pdfs_paths: Dict[str, Path] = {}  # {nombre_archivo: path}
 
         # Tracking de cambios
         self.correcciones: List[Dict] = []
@@ -60,39 +63,113 @@ class ValidationSession:
         self.campos_agregados = 0
 
     def load_data(self) -> bool:
-        """Carga PDF y JSON."""
+        """Carga JSON y auto-detecta PDFs desde archivos_origen_consolidados."""
         try:
             # Cargar JSON
             console.print(f"\n[cyan]📂 Cargando: {self.json_path.name}[/cyan]")
             with open(self.json_path, 'r', encoding='utf-8') as f:
                 self.historia_dict = json.load(f)
 
-            # Extraer PDF
-            console.print(f"[cyan]📄 Extrayendo PDF: {self.pdf_path.name}[/cyan]")
-            extractor = AzureDocumentExtractor()
-            result = extractor.extract(self.pdf_path)
+            # Detectar si es consolidado
+            archivos_origen = self.historia_dict.get('archivos_origen_consolidados', [])
 
-            if not result.success:
-                console.print(f"[red]❌ Error: {result.error}[/red]")
+            if not archivos_origen:
+                # JSON individual (no consolidado)
+                archivo_simple = self.historia_dict.get('archivo_origen')
+                if archivo_simple:
+                    archivos_origen = [archivo_simple]
+
+            if not archivos_origen:
+                console.print("[red]❌ No se encontraron archivos de origen en el JSON[/red]")
                 return False
 
-            self.texto_pdf = result.text
-            console.print("[green]✅ Datos cargados\n[/green]")
+            console.print(f"[cyan]📄 Archivos de origen detectados: {len(archivos_origen)}[/cyan]")
+
+            # Extraer cada PDF
+            extractor = AzureDocumentExtractor()
+
+            for nombre_archivo in archivos_origen:
+                # Buscar PDF en pdf_dir
+                pdf_path = self.pdf_dir / nombre_archivo
+
+                if not pdf_path.exists():
+                    console.print(f"[yellow]⚠️  No encontrado: {nombre_archivo} (buscando en {self.pdf_dir})[/yellow]")
+                    continue
+
+                console.print(f"[cyan]   • Extrayendo: {nombre_archivo}[/cyan]")
+                result = extractor.extract(pdf_path)
+
+                if not result.success:
+                    console.print(f"[yellow]⚠️  Error extrayendo {nombre_archivo}: {result.error}[/yellow]")
+                    continue
+
+                self.pdfs_texto[nombre_archivo] = result.text
+                self.pdfs_paths[nombre_archivo] = pdf_path
+
+            if not self.pdfs_texto:
+                console.print("[red]❌ No se pudo extraer ningún PDF[/red]")
+                return False
+
+            console.print(f"[green]✅ {len(self.pdfs_texto)} PDF(s) extraídos\n[/green]")
             return True
 
         except Exception as e:
             console.print(f"[red]❌ Error cargando datos: {e}[/red]")
             return False
 
-    def mostrar_contexto_pdf(self, search_term: str = None):
-        """Muestra fragmento relevante del PDF."""
+    def get_pdf_for_field(self, campo: str) -> Optional[str]:
+        """
+        Retorna el nombre del PDF más relevante para este campo.
+
+        Lógica:
+        - Campos generales (empleado, signos, antecedentes) → HC/CMO
+        - Exámenes específicos → PDF del examen si es individual
+        - Default → primer PDF (generalmente HC)
+        """
+        # Si solo hay 1 PDF, retornar ese
+        if len(self.pdfs_texto) == 1:
+            return list(self.pdfs_texto.keys())[0]
+
+        # Buscar HC o CMO para campos generales
+        if any(keyword in campo.lower() for keyword in [
+            'datos_empleado', 'signos_vitales', 'antecedentes',
+            'tipo_emo', 'fecha_emo', 'aptitud', 'hallazgos'
+        ]):
+            for nombre in self.pdfs_texto.keys():
+                if any(keyword in nombre.upper() for keyword in ['HC', 'CMO', 'HISTORIA', 'CERTIFICADO']):
+                    return nombre
+
+        # Para exámenes, intentar buscar PDF específico
+        if 'examenes' in campo.lower():
+            # Extraer tipo de examen del campo si es posible
+            # Por ahora, buscar primero examen específico que no sea HC
+            for nombre in self.pdfs_texto.keys():
+                if not any(keyword in nombre.upper() for keyword in ['HC', 'CMO']):
+                    # Probablemente un examen específico
+                    return nombre
+
+        # Default: primer PDF (generalmente HC)
+        return list(self.pdfs_texto.keys())[0] if self.pdfs_texto else None
+
+    def mostrar_contexto_pdf(self, search_term: str = None, campo: str = None):
+        """Muestra fragmento relevante del PDF más apropiado."""
+
+        # Determinar qué PDF usar
+        pdf_nombre = self.get_pdf_for_field(campo) if campo else list(self.pdfs_texto.keys())[0]
+
+        if not pdf_nombre:
+            console.print("[yellow]No hay PDFs cargados[/yellow]")
+            return
+
+        texto_pdf = self.pdfs_texto[pdf_nombre]
+
         if not search_term:
             # Mostrar primeras líneas
-            lines = self.texto_pdf.split('\n')[:20]
+            lines = texto_pdf.split('\n')[:20]
             texto = '\n'.join(lines)
         else:
             # Buscar término y mostrar contexto
-            lines = self.texto_pdf.split('\n')
+            lines = texto_pdf.split('\n')
             matching_lines = []
             for i, line in enumerate(lines):
                 if search_term.lower() in line.lower():
@@ -106,7 +183,7 @@ class ValidationSession:
 
         console.print(Panel(
             texto,
-            title="📄 Contexto del PDF",
+            title=f"📄 Contexto del PDF: {pdf_nombre}",
             border_style="cyan",
             expand=False
         ))
@@ -152,12 +229,17 @@ class ValidationSession:
 
         full_path = f"{path}.{campo_nombre}" if path else campo_nombre
 
+        # Determinar PDF fuente para este campo
+        pdf_fuente = self.get_pdf_for_field(full_path)
+
         # Mostrar valor actual
         table = Table(show_header=False, box=None, padding=(0, 1))
         table.add_column("Label", style="cyan bold")
         table.add_column("Value")
         table.add_row("Campo:", full_path)
         table.add_row("Valor:", str(valor_actual) if valor_actual is not None else "[dim]null[/dim]")
+        if pdf_fuente:
+            table.add_row("📄 Fuente:", f"[dim]{pdf_fuente}[/dim]")
         console.print(table)
 
         # Opciones
@@ -171,7 +253,7 @@ class ValidationSession:
         elif opcion == "p":
             # Mostrar contexto del PDF
             search_term = Prompt.ask("Término a buscar en PDF", default=campo_nombre)
-            self.mostrar_contexto_pdf(search_term)
+            self.mostrar_contexto_pdf(search_term, campo=full_path)
             return self.validar_campo_simple(campo_nombre, valor_actual, path)
         elif opcion == "e":
             # Editar valor
@@ -562,8 +644,13 @@ class ValidationSession:
 
 
 @click.command()
-@click.argument('pdf_path', type=click.Path(exists=True))
 @click.argument('json_path', type=click.Path(exists=True))
+@click.option(
+    '--pdf-dir',
+    type=click.Path(exists=True),
+    default='data/raw',
+    help='Directorio donde buscar los PDFs de origen (default: data/raw/)'
+)
 @click.option(
     '--output',
     '-o',
@@ -571,23 +658,31 @@ class ValidationSession:
     default='data/labeled',
     help='Directorio de salida (default: data/labeled/)'
 )
-def main(pdf_path, json_path, output):
+def main(json_path, pdf_dir, output):
     """
-    Valida ground truth de una historia clínica COMPLETA.
+    Valida ground truth de una historia clínica COMPLETA (consolidada o individual).
 
+    Auto-detecta y carga los PDFs de origen desde archivos_origen_consolidados.
     Navega por secciones validando TODO el JSON.
     Captura razones de cada corrección.
 
-    Ejemplo:
-        python validate_ground_truth_v2.py data/raw/HC_001.pdf data/processed/HC_001.json
+    Ejemplos:
+        # JSON consolidado (auto-detecta múltiples PDFs)
+        python validate_ground_truth_v2.py data/processed/12345678_consolidated.json
+
+        # JSON individual (auto-detecta 1 PDF)
+        python validate_ground_truth_v2.py data/processed/HC_001.json
+
+        # Especificar directorio custom de PDFs
+        python validate_ground_truth_v2.py consolidated.json --pdf-dir /path/to/pdfs/
     """
     console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]")
     console.print("[bold cyan]  VALIDADOR DE GROUND TRUTH v2.0 - COMPLETO[/bold cyan]")
     console.print("[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
 
     session = ValidationSession(
-        pdf_path=Path(pdf_path),
         json_path=Path(json_path),
+        pdf_dir=Path(pdf_dir),
         output_dir=Path(output)
     )
 
@@ -599,7 +694,10 @@ def main(pdf_path, json_path, output):
     # Mostrar info inicial
     console.print(f"[bold]Archivo:[/bold] {session.json_path.name}")
     console.print(f"[bold]Tipo documento:[/bold] {session.historia_dict.get('tipo_documento_fuente', 'N/A')}")
-    console.print(f"[bold]PDF:[/bold] {len(session.texto_pdf)} caracteres\n")
+    console.print(f"[bold]PDFs cargados:[/bold] {len(session.pdfs_texto)}")
+    for nombre in session.pdfs_texto.keys():
+        console.print(f"  • {nombre}")
+    console.print()
 
     Prompt.ask("[Presiona Enter para comenzar]")
 

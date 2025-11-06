@@ -39,17 +39,25 @@ for json_file in data/processed/*.json; do
 
     # Obtener el nombre base sin extensión
     filename=$(basename "$json_file" .json)
-    pdf_file="data/raw/${filename}.pdf"
-
-    # Verificar que el PDF existe
-    if [ ! -f "$pdf_file" ]; then
-        echo "⚠️  PDF no encontrado para: $filename"
-        echo ""
-        continue
-    fi
 
     echo "📄 Validando: $filename"
-    $VALIDATOR "$pdf_file" "$json_file"
+
+    if [ "$version" = "1" ]; then
+        # v1 requiere PDF específico
+        pdf_file="data/raw/${filename}.pdf"
+
+        if [ ! -f "$pdf_file" ]; then
+            echo "⚠️  PDF no encontrado para: $filename"
+            echo ""
+            continue
+        fi
+
+        $VALIDATOR "$pdf_file" "$json_file"
+    else
+        # v2 auto-detecta PDFs desde el JSON
+        $VALIDATOR "$json_file"
+    fi
+
     validados=$((validados + 1))
     echo ""
     echo "-------------------------------------------"
