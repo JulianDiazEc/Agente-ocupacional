@@ -9,8 +9,10 @@ Transforma PDFs de historias clínicas (nativos o escaneados) en datos estructur
 ## 🎯 Características Principales
 
 - ✅ **Extracción de PDFs**: Soporte para documentos nativos y escaneados (OCR) con Azure Document Intelligence
-- ✅ **Procesamiento Inteligente**: Estructuración de datos médicos con Claude Sonnet 4
-- ✅ **Validación Robusta**: Validación automática de CIE-10, fechas, y valores clínicos
+- ✅ **Procesamiento Inteligente**: Estructuración de datos médicos con Claude Sonnet 4 / Haiku 4.5
+- ✅ **Consolidación Multi-Documento**: Unifica múltiples exámenes de una persona (HC, RX, Labs) en 1 JSON sin duplicados
+- ✅ **Prompt Caching**: Reducción de costos de 78% ($3.00 → $0.66 por 40 HCs) con caching de Anthropic
+- ✅ **Validación Robusta**: Validación automática de CIE-10, fechas, y valores clínicos con reglas anti-falsos positivos
 - ✅ **Alertas Médicas**: Detección automática de inconsistencias y valores críticos
 - ✅ **Export Flexible**: JSON estructurado y Excel para análisis
 - ✅ **CLI Intuitivo**: Interfaz de línea de comandos con Rich (colores y progress bars)
@@ -142,7 +144,54 @@ python -m src.cli process data/raw/HC_123.pdf \
 
 ---
 
-#### 2. Procesar múltiples HCs en batch
+#### 2. Procesar múltiples exámenes de una persona (con consolidación automática)
+
+**Nuevo:** Procesa múltiples documentos de una misma persona (HC base, RX, Labs, audiometría, etc.) y los consolida automáticamente en un único JSON sin duplicados.
+
+```bash
+narah-hc process-person HC_juan.pdf RX_juan.pdf Labs_juan.pdf --person-id "12345678"
+```
+
+**Opciones:**
+
+- `--person-id`, `-p`: ID de la persona (documento, nombre) - usado para nombrar el archivo consolidado
+- `--output`, `-o`: Directorio de salida (default: `data/processed/`)
+- `--show-result`, `-s`: Mostrar resumen visual del resultado consolidado
+
+**Ejemplos:**
+
+```bash
+# Con ID de persona
+narah-hc process-person HC.pdf RX.pdf Labs.pdf --person-id "12345678"
+
+# Con wildcards
+narah-hc process-person juan_*.pdf -p "Juan Perez"
+
+# Con resumen visual
+narah-hc process-person *.pdf -s
+```
+
+**¿Qué hace?**
+
+1. **Procesa** todos los PDFs individualment (Azure + Claude)
+2. **Consolida** los JSONs eliminando duplicados inteligentemente:
+   - Diagnósticos: Por código CIE-10 (mantiene el de mayor confianza)
+   - Antecedentes: Por tipo + descripción
+   - Exámenes: Por tipo + fecha (orden cronológico)
+   - Recomendaciones: Por tipo + descripción (mantiene mayor prioridad)
+   - Programas SVE: Unión de todos
+3. **Guarda** resultado consolidado: `{person_id}_consolidated.json`
+
+**Output:**
+
+- `data/processed/HC_juan.json`, `RX_juan.json`, `Labs_juan.json` (individuales)
+- `data/processed/12345678_consolidated.json` (consolidado final)
+
+**Ideal para:** Frontend futuro donde usuario sube múltiples exámenes de una persona y recibe JSON consolidado automáticamente.
+
+---
+
+#### 3. Procesar múltiples HCs en batch
 
 ```bash
 python -m src.cli batch data/raw/
@@ -167,7 +216,7 @@ python -m src.cli batch data/raw/ \
 
 ---
 
-#### 3. Ver resumen de HC procesada
+#### 4. Ver resumen de HC procesada
 
 ```bash
 python -m src.cli show data/processed/HC_001.json
@@ -185,7 +234,7 @@ python -m src.cli show data/processed/HC_001.json
 
 ---
 
-#### 4. Exportar a formato Narah Metrics
+#### 5. Exportar a formato Narah Metrics
 
 ```bash
 python -m src.cli export-narah data/processed/ --output narah_import.xlsx
@@ -201,7 +250,7 @@ python -m src.cli export-narah data/processed/ --output narah_import.xlsx
 
 ---
 
-#### 5. Analizar calidad del batch procesado
+#### 6. Analizar calidad del batch procesado
 
 **Nuevo:** Script de análisis estadístico para evaluar la calidad del procesamiento batch.
 
