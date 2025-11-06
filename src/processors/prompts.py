@@ -134,12 +134,50 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
       - Código CIE-10 con formato erróneo
       - Fechas en formato no ISO
 
-7. DATOS FALTANTES:
+7. DATOS DEL EMPLEADO - REGLAS ANTI-FALSOS POSITIVOS:
+
+   a) TIPO DE DOCUMENTO:
+      ✅ EXTRAER solo si aparece como campo explícito:
+         - "Tipo de documento: CC"
+         - "Documento: CC 12345678"
+         - "Cédula de Ciudadanía"
+
+      ❌ NO EXTRAER si "CC" aparece dentro de palabras:
+         - "dire**cc**ión" → NO es tipo_documento
+         - "protec**cc**ión" → NO es tipo_documento
+         - "reac**cc**ión" → NO es tipo_documento
+
+      REGLA: Solo extraer cuando "CC", "CE", "TI", etc. aparezcan como PALABRA COMPLETA
+      asociada a identificación, NO como parte de otra palabra.
+
+   b) CARGO:
+      ✅ EXTRAER cargos específicos y útiles:
+         - "Operario de producción"
+         - "Contador"
+         - "Auxiliar de enfermería"
+         - "Conductor"
+         - "Soldador"
+
+      ❌ NO EXTRAER valores genéricos o ambiguos:
+         - "Empleado" → Demasiado genérico, usa null
+         - "Trabajador" → Demasiado genérico, usa null
+         - "Ocupación: empleado" → NO extraer, usa null
+         - "Personal" → Demasiado genérico, usa null
+
+      REGLA: El cargo debe ser específico y describir la función/rol real.
+      Si solo dice "empleado" o "trabajador", mejor usa null.
+
+   c) OTROS CAMPOS DEMOGRÁFICOS:
+      - Edad: Solo si es numérica y razonable (16-100)
+      - Sexo: Solo M, F, O (no "masculino", "femenino" - convertir a letra)
+      - Documento: Extraer el número completo sin puntos ni espacios
+
+8. DATOS FALTANTES:
    - Si un campo no está en la HC, usa null
    - NO inventes valores médicos
    - Si algo es ambiguo, extráelo y marca confianza baja + alerta
 
-8. NIVEL DE CONFIANZA:
+9. NIVEL DE CONFIANZA:
    - 1.0: Dato explícito y claro
    - 0.9: Dato explícito pero formato no estándar
    - 0.7: Dato con jerga médica ambigua
@@ -326,12 +364,50 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
    c) VALORES CRÍTICOS: PA ≥180/110, Glicemia ≥200, IMC <16 o >40
    d) FORMATO INCORRECTO: Código CIE-10 erróneo, fechas no ISO
 
-7. DATOS FALTANTES:
+7. DATOS DEL EMPLEADO - REGLAS ANTI-FALSOS POSITIVOS:
+
+   a) TIPO DE DOCUMENTO:
+      ✅ EXTRAER solo si aparece como campo explícito:
+         - "Tipo de documento: CC"
+         - "Documento: CC 12345678"
+         - "Cédula de Ciudadanía"
+
+      ❌ NO EXTRAER si "CC" aparece dentro de palabras:
+         - "dire**cc**ión" → NO es tipo_documento
+         - "protec**cc**ión" → NO es tipo_documento
+         - "reac**cc**ión" → NO es tipo_documento
+
+      REGLA: Solo extraer cuando "CC", "CE", "TI", etc. aparezcan como PALABRA COMPLETA
+      asociada a identificación, NO como parte de otra palabra.
+
+   b) CARGO:
+      ✅ EXTRAER cargos específicos y útiles:
+         - "Operario de producción"
+         - "Contador"
+         - "Auxiliar de enfermería"
+         - "Conductor"
+         - "Soldador"
+
+      ❌ NO EXTRAER valores genéricos o ambiguos:
+         - "Empleado" → Demasiado genérico, usa null
+         - "Trabajador" → Demasiado genérico, usa null
+         - "Ocupación: empleado" → NO extraer, usa null
+         - "Personal" → Demasiado genérico, usa null
+
+      REGLA: El cargo debe ser específico y describir la función/rol real.
+      Si solo dice "empleado" o "trabajador", mejor usa null.
+
+   c) OTROS CAMPOS DEMOGRÁFICOS:
+      - Edad: Solo si es numérica y razonable (16-100)
+      - Sexo: Solo M, F, O (no "masculino", "femenino" - convertir a letra)
+      - Documento: Extraer el número completo sin puntos ni espacios
+
+8. DATOS FALTANTES:
    - Si un campo no está en la HC, usa null
    - NO inventes valores médicos
    - Si algo es ambiguo, extráelo y marca confianza baja + alerta
 
-8. NIVEL DE CONFIANZA:
+9. NIVEL DE CONFIANZA:
    - 1.0: Dato explícito y claro
    - 0.9: Dato explícito pero formato no estándar
    - 0.7: Dato con jerga médica ambigua
