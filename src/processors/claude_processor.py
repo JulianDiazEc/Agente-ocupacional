@@ -311,6 +311,84 @@ def consolidate_negation_antecedentes(antecedentes: list[dict]) -> list[dict]:
     return cleaned
 
 
+def summarize_normal_physical_exam(hallazgos: str) -> str:
+    """
+    Resume hallazgos_examen_fisico cuando no hay hallazgos patológicos.
+
+    Criterio semántico (no cuantitativo):
+    - Si NO hay palabras patológicas
+    - Y el texto supera 200 caracteres
+    - Entonces resumir como "sin hallazgos patológicos relevantes"
+
+    Args:
+        hallazgos: Texto de hallazgos del examen físico
+
+    Returns:
+        str: Hallazgos resumidos si aplica, original si hay hallazgos patológicos
+    """
+    if not hallazgos or len(hallazgos) <= 200:
+        return hallazgos
+
+    text_lower = normalize_text_for_comparison(hallazgos)
+
+    # Indicadores de hallazgos patológicos
+    pathologic_indicators = [
+        "dolor", "inflamacion", "edema", "masa", "tumoracion",
+        "positivo", "alterado", "aumentado", "disminuido",
+        "limitacion", "restringido", "anormal", "patologico",
+        "hipertrofia", "atrofia", "lesion", "fractura", "deformidad"
+    ]
+
+    # Si tiene hallazgos patológicos, conservar completo
+    has_pathologic = any(ind in text_lower for ind in pathologic_indicators)
+
+    if has_pathologic:
+        return hallazgos
+
+    # Si NO hay hallazgos patológicos y es largo, resumir
+    logger.debug(
+        f"hallazgos_examen_fisico sin hallazgos patológicos y >200 chars, "
+        f"resumiendo. Longitud original: {len(hallazgos)}"
+    )
+    return "Examen físico sin hallazgos patológicos relevantes"
+
+
+def clean_exam_findings(examenes: list[dict]) -> list[dict]:
+    """
+    Limpia hallazgos_clave en exámenes según interpretación.
+
+    Reglas:
+    - Si interpretacion = "normal" → resumir hallazgos_clave
+    - Si interpretacion = "alterado" o "critico" → conservar TODO
+
+    No usa null para evitar confusión con campo faltante.
+
+    Args:
+        examenes: Lista de exámenes paraclínicos
+
+    Returns:
+        list[dict]: Exámenes con hallazgos_clave limpiados
+    """
+    if not examenes:
+        return []
+
+    for exam in examenes:
+        interpretacion = exam.get('interpretacion')
+        hallazgos = exam.get('hallazgos_clave', '')
+
+        # Si es normal y tiene hallazgos detallados, resumir
+        if interpretacion == 'normal' and hallazgos and len(hallazgos) > 50:
+            logger.debug(
+                f"Examen {exam.get('tipo', 'desconocido')} normal con hallazgos "
+                f"detallados ({len(hallazgos)} chars), resumiendo"
+            )
+            exam['hallazgos_clave'] = "Todos los parámetros dentro de rangos normales"
+
+        # Si es alterado o crítico, conservar TODO (no filtrar por ahora)
+
+    return examenes
+
+
 class ClaudeProcessor:
     """
     Procesador de historias clínicas usando Claude API.
@@ -469,6 +547,18 @@ class ClaudeProcessor:
                     historia_dict['antecedentes']
                 )
 
+            # Postprocesamiento: Resumir hallazgos de examen físico normales
+            if 'hallazgos_examen_fisico' in historia_dict and historia_dict['hallazgos_examen_fisico']:
+                historia_dict['hallazgos_examen_fisico'] = summarize_normal_physical_exam(
+                    historia_dict['hallazgos_examen_fisico']
+                )
+
+            # Postprocesamiento: Limpiar hallazgos_clave en exámenes normales
+            if 'examenes' in historia_dict and historia_dict['examenes']:
+                historia_dict['examenes'] = clean_exam_findings(
+                    historia_dict['examenes']
+                )
+
             # Agregar metadata
             historia_dict["archivo_origen"] = archivo_origen
 
@@ -480,6 +570,11 @@ class ClaudeProcessor:
 
             # Agregar alertas de validación
             historia.alertas_validacion.extend(alertas_adicionales)
+
+            # Filtrar alertas innecesarias/ruido
+            historia.alertas_validacion = self._filter_unnecessary_alerts(
+                historia.alertas_validacion
+            )
 
             # Calcular confianza si no fue calculada
             if historia.confianza_extraccion == 0.0:
@@ -535,6 +630,40 @@ class ClaudeProcessor:
             "La respuesta de Claude no contiene JSON válido. "
             "Verifique los logs para más detalles."
         )
+
+    def _filter_unnecessary_alerts(self, alertas: list) -> list:
+        """
+        Filtra alertas innecesarias o de ruido administrativo.
+
+        Alertas eliminadas:
+        - Falta de EPS/ARL (dato administrativo, no clínico)
+
+        Args:
+            alertas: Lista de alertas
+
+        Returns:
+            list: Alertas filtradas
+        """
+        if not alertas:
+            return []
+
+        filtered = []
+
+        for alerta in alertas:
+            # Filtrar alerta de EPS/ARL faltante
+            if (alerta.tipo == "dato_faltante" and
+                alerta.campo_afectado == "datos_empleado" and
+                "EPS" in alerta.descripcion and "ARL" in alerta.descripcion):
+                logger.debug(f"Alerta administrativa filtrada: {alerta.descripcion}")
+                continue
+
+            # Conservar el resto de alertas
+            filtered.append(alerta)
+
+        if len(filtered) < len(alertas):
+            logger.debug(f"Alertas filtradas: {len(alertas)} → {len(filtered)}")
+
+        return filtered
 
     def _calculate_confidence(self, historia: HistoriaClinicaEstructurada) -> float:
         """

@@ -153,18 +153,9 @@ class CIE10Validator:
                     )
                 )
 
-        # Validar que haya al menos un diagnóstico principal
-        principales = [d for d in diagnosticos if d.tipo == "principal"]
-        if not principales:
-            alertas.append(
-                Alerta(
-                    tipo="inconsistencia_diagnostica",
-                    severidad="media",
-                    campo_afectado="diagnosticos",
-                    descripcion="No se identificó ningún diagnóstico principal",
-                    accion_sugerida="Verificar cuál diagnóstico debe ser el principal"
-                )
-            )
+        # ELIMINADO: Validación de "diagnóstico principal"
+        # No existe concepto obligatorio de diagnóstico principal/secundario en este contexto
+        # (Regla 3 anti-false-positive: diagnosticos.tipo solo cuando explícito)
 
         return alertas
 
