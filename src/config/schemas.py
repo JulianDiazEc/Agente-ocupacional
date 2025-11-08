@@ -32,6 +32,103 @@ def convert_to_bool(v: Any) -> bool:
     return True
 
 
+def normalize_programa_sve(v: str) -> Optional[str]:
+    """
+    Normaliza nombres de programas SVE a valores estándar.
+
+    Mapea variaciones comunes que Claude puede retornar:
+    - "osteomuscular", "músculo-esquelético" → "dme"
+    - "auditivo", "conservación auditiva" → "ruido"
+    - etc.
+    """
+    if not v or not isinstance(v, str):
+        return None
+
+    v_clean = v.lower().strip()
+
+    # Mapeo de variaciones comunes
+    mapeo = {
+        # DME - Desórdenes musculoesqueléticos
+        "dme": "dme",
+        "osteomuscular": "dme",
+        "musculoesqueletico": "dme",
+        "musculo-esqueletico": "dme",
+        "osteo": "dme",
+        "ergonomico": "dme",
+        "desordenes_musculoesqueleticos": "dme",
+
+        # Ruido
+        "ruido": "ruido",
+        "auditivo": "ruido",
+        "conservacion_auditiva": "ruido",
+        "conservación_auditiva": "ruido",
+        "audiometria": "ruido",
+        "auditiva": "ruido",
+
+        # Biológico
+        "biologico": "biologico",
+        "biológico": "biologico",
+        "riesgo_biologico": "biologico",
+
+        # Psicosocial
+        "psicosocial": "psicosocial",
+        "psico": "psicosocial",
+        "riesgo_psicosocial": "psicosocial",
+
+        # BTX
+        "btx": "btx",
+        "solventes": "btx",
+        "benceno": "btx",
+        "tolueno": "btx",
+        "xileno": "btx",
+
+        # Radiaciones
+        "radiaciones_ionizantes": "radiaciones_ionizantes",
+        "radiaciones": "radiaciones_ionizantes",
+        "rayos_x": "radiaciones_ionizantes",
+
+        # Químico
+        "quimico": "quimico",
+        "químico": "quimico",
+        "riesgo_quimico": "quimico",
+        "sustancias_quimicas": "quimico",
+
+        # Cardiovascular
+        "cardiovascular": "cardiovascular",
+        "cardio": "cardiovascular",
+        "corazon": "cardiovascular",
+        "hipertension": "cardiovascular",
+
+        # Voz
+        "voz": "voz",
+        "vocal": "voz",
+        "laringeo": "voz",
+
+        # Visual
+        "visual": "visual",
+        "oftalmologico": "visual",
+        "oftalmológico": "visual",
+        "ojos": "visual",
+        "vision": "visual",
+        "visión": "visual",
+
+        # Respiratorio
+        "respiratorio": "respiratorio",
+        "neumologico": "respiratorio",
+        "neumológico": "respiratorio",
+        "pulmonar": "respiratorio",
+        "pulmones": "respiratorio",
+    }
+
+    # Buscar coincidencia
+    for clave, valor_std in mapeo.items():
+        if clave in v_clean:
+            return valor_std
+
+    # Si no hay coincidencia, retornar None (se filtrará)
+    return None
+
+
 class Diagnostico(BaseModel):
     """
     Diagnóstico médico con código CIE-10.
@@ -396,6 +493,25 @@ class HistoriaClinicaEstructurada(BaseModel):
         "visual",
         "respiratorio"
     ]] = Field(default_factory=list, description="Programas SVE en los que debe incluirse")
+
+    @field_validator('programas_sve', mode='before')
+    @classmethod
+    def normalize_programas_sve(cls, v):
+        """Normaliza nombres de programas SVE a valores estándar."""
+        if not v:
+            return []
+
+        if not isinstance(v, list):
+            v = [v]
+
+        programas_normalizados = []
+        for programa in v:
+            if isinstance(programa, str):
+                normalizado = normalize_programa_sve(programa)
+                if normalizado and normalizado not in programas_normalizados:
+                    programas_normalizados.append(normalizado)
+
+        return programas_normalizados
 
     # Reincorporación laboral
     genera_reincorporacion: bool = Field(
