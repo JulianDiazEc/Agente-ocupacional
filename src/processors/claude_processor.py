@@ -136,6 +136,24 @@ GENERIC_TOKEN_GROUPS = [
     (['consumo', 'agua'], []),
 ]
 
+# Nombres de exámenes médicos (no deben aparecer como recomendaciones)
+EXAM_NAME_TERMS = [
+    'espirometria', 'audiometria', 'optometria', 'visiometria',
+    'laboratorio', 'laboratorios', 'radiografia', 'ecografia',
+    'electrocardiograma', 'ecg', 'ekg', 'rayos x', 'rx',
+    'tomografia', 'resonancia', 'parcial de orina', 'hemograma',
+    'glicemia', 'colesterol', 'trigliceridos', 'cuadro hematico',
+    'coprológico', 'coprologico', 'vdrl', 'vih', 'hepatitis'
+]
+
+# Términos que indican órdenes genéricas de exámenes (no recomendaciones específicas)
+GENERIC_ORDER_TERMS = [
+    'control periodico', 'control ocupacional', 'control anual',
+    'examen complementario', 'valoracion', 'evaluacion',
+    'realizar', 'solicitar', 'ordenar', 'programar',
+    'educacion en', 'capacitacion en', 'seguimiento por'
+]
+
 
 def normalize_text_for_comparison(text: str) -> str:
     """
@@ -210,18 +228,38 @@ def filter_generic_recommendations(recomendaciones: list[dict]) -> list[dict]:
             continue
 
         desc_normalized = normalize_text_for_comparison(descripcion)
-
-        # Verificar si contiene algún grupo de tokens genéricos
+        palabra_count = len(descripcion.split())
         is_generic = False
+        razon_filtrado = ""
+
+        # Regla 1: Verificar si contiene algún grupo de tokens genéricos
         for required_tokens, optional_tokens in GENERIC_TOKEN_GROUPS:
             if contains_token_group(desc_normalized, required_tokens, optional_tokens):
                 is_generic = True
-                logger.debug(
-                    f"Recomendación genérica filtrada (tokens: {required_tokens}): '{descripcion}'"
-                )
+                razon_filtrado = f"tokens genéricos: {required_tokens}"
                 break
 
+        # Regla 2: Filtrar nombres de exámenes sueltos (≤3 palabras)
+        if not is_generic and palabra_count <= 3:
+            for exam_term in EXAM_NAME_TERMS:
+                if exam_term in desc_normalized:
+                    is_generic = True
+                    razon_filtrado = f"nombre de examen suelto: '{exam_term}'"
+                    break
+
+        # Regla 3: Filtrar órdenes genéricas de exámenes
         if not is_generic:
+            for order_term in GENERIC_ORDER_TERMS:
+                if order_term in desc_normalized:
+                    is_generic = True
+                    razon_filtrado = f"orden genérica: '{order_term}'"
+                    break
+
+        if is_generic:
+            logger.debug(
+                f"Recomendación genérica filtrada ({razon_filtrado}): '{descripcion}'"
+            )
+        else:
             filtered.append(rec)
 
     logger.debug(
@@ -454,15 +492,17 @@ def consolidate_negation_antecedentes(antecedentes: list[dict]) -> list[dict]:
 
 def summarize_normal_physical_exam(hallazgos: str) -> str:
     """
-    Resume hallazgos_examen_fisico cuando no hay hallazgos patológicos.
+    Resume hallazgos_examen_fisico preservando SIEMPRE la patología.
 
-    Criterio: Buscar SOLO términos claramente patológicos.
-    "negativo/negativas" NO son patológicos (son parte de normalidad).
+    Lógica inteligente:
+    1. Si hay ≥1 hallazgo patológico REAL → conservar solo esos + resumir resto
+    2. Si todo es normal (≥3 negaciones o ratio >0.6) y >150 chars → resumen completo
+    3. NUNCA perder información patológica
 
-    Reglas:
-    - Si NO hay palabras patológicas
-    - Y el texto supera 200 caracteres
-    - Entonces resumir como "sin hallazgos patológicos relevantes"
+    Criterio de normalidad:
+    - Contar negaciones explícitas: "sin X", "no X", "ausencia de", "normal", "negativas"
+    - Detectar afirmaciones patológicas verificando contexto (no precedidas de negación)
+    - Umbral: ≥3 negaciones o ratio_negaciones/total_palabras > 0.6
 
     Args:
         hallazgos: Texto de hallazgos del examen físico
@@ -470,13 +510,29 @@ def summarize_normal_physical_exam(hallazgos: str) -> str:
     Returns:
         str: Hallazgos resumidos si aplica, original si hay hallazgos patológicos
     """
-    if not hallazgos or len(hallazgos) <= 200:
+    import re
+
+    if not hallazgos or len(hallazgos) <= 150:
         return hallazgos
 
-    text_lower = normalize_text_for_comparison(hallazgos)
+    text_lower = hallazgos.lower()
+    text_normalized = normalize_text_for_comparison(hallazgos)
 
-    # Indicadores de hallazgos CLARAMENTE patológicos
-    # NO incluir: "negativo", "negativas", "sin", "normal" (son normalidad)
+    # Paso 1: Contar indicadores de normalidad
+    negation_patterns = [
+        r'\bsin\s+\w+',           # "sin adenopatías"
+        r'\bno\s+\w+',            # "no masas"
+        r'\bausencia\s+de',       # "ausencia de"
+        r'\bnormal(?:es)?',       # "normal", "normales"
+        r'\bnegativ[oa]s?',       # "negativo", "negativas"
+        r'\bdentro\s+de'          # "dentro de límites"
+    ]
+
+    negation_count = sum(len(re.findall(p, text_lower, re.I)) for p in negation_patterns)
+    total_palabras = len(text_normalized.split())
+    ratio_negaciones = negation_count / total_palabras if total_palabras > 0 else 0
+
+    # Paso 2: Buscar afirmaciones patológicas REALES (no precedidas de negación)
     pathologic_indicators = [
         "dolor", "masa", "hernia", "tumor", "edema",
         "inflamado", "inflamacion", "limitacion", "disminuido",
@@ -486,18 +542,53 @@ def summarize_normal_physical_exam(hallazgos: str) -> str:
         "arritmia", "crepitacion", "derrame"
     ]
 
-    # Si tiene hallazgos patológicos, conservar completo
-    has_pathologic = any(ind in text_lower for ind in pathologic_indicators)
+    pathologic_findings = []
+    for term in pathologic_indicators:
+        # Buscar todas las ocurrencias del término
+        pattern = r'\b' + term + r'\w*'
+        matches = list(re.finditer(pattern, text_lower, re.I))
 
-    if has_pathologic:
-        return hallazgos
+        for match in matches:
+            # Verificar contexto: 30 caracteres antes del término
+            start = max(0, match.start() - 30)
+            context_before = text_lower[start:match.start()]
 
-    # Si NO hay hallazgos patológicos y es largo, resumir
-    logger.debug(
-        f"hallazgos_examen_fisico sin hallazgos patológicos y >200 chars, "
-        f"resumiendo. Longitud original: {len(hallazgos)}"
-    )
-    return "Examen físico sin hallazgos patológicos relevantes"
+            # Si NO hay negación cerca → es afirmación patológica
+            if not re.search(r'\b(sin|no|ausencia|niega|negativ)', context_before):
+                # Extraer la frase completa (hasta el punto o nueva línea)
+                sentence_start = text_lower.rfind('.', 0, match.start())
+                sentence_start = sentence_start + 1 if sentence_start != -1 else 0
+                sentence_end = text_lower.find('.', match.end())
+                sentence_end = sentence_end if sentence_end != -1 else len(text_lower)
+
+                pathologic_sentence = hallazgos[sentence_start:sentence_end].strip()
+                if pathologic_sentence and pathologic_sentence not in pathologic_findings:
+                    pathologic_findings.append(pathologic_sentence)
+                break  # Ya encontramos este término como patológico
+
+    # Paso 3: Decidir acción basada en hallazgos
+
+    # Caso 1: Hay hallazgos patológicos → conservar solo esos + resumir resto
+    if pathologic_findings:
+        logger.debug(
+            f"Examen físico con {len(pathologic_findings)} hallazgo(s) patológico(s), "
+            f"conservando solo esos y resumiendo resto"
+        )
+        resultado = ". ".join(pathologic_findings)
+        resultado += ". Resto de sistemas sin hallazgos patológicos relevantes."
+        return resultado
+
+    # Caso 2: Todo normal → verificar si cumple umbral para resumir
+    if (negation_count >= 3 or ratio_negaciones > 0.6) and len(hallazgos) > 150:
+        logger.debug(
+            f"Examen físico sin hallazgos patológicos "
+            f"(negaciones: {negation_count}, ratio: {ratio_negaciones:.2f}), "
+            f"resumiendo. Longitud original: {len(hallazgos)}"
+        )
+        return "Examen físico sin hallazgos patológicos relevantes"
+
+    # Caso 3: No cumple umbral o es corto → conservar original
+    return hallazgos
 
 
 def clean_exam_findings(examenes: list[dict]) -> list[dict]:
@@ -523,13 +614,23 @@ def clean_exam_findings(examenes: list[dict]) -> list[dict]:
         interpretacion = exam.get('interpretacion')
         hallazgos = exam.get('hallazgos_clave', '')
 
-        # Si es normal y tiene hallazgos detallados, resumir
-        if interpretacion == 'normal' and hallazgos and len(hallazgos) > 50:
-            logger.debug(
-                f"Examen {exam.get('tipo', 'desconocido')} normal con hallazgos "
-                f"detallados ({len(hallazgos)} chars), resumiendo"
-            )
-            exam['hallazgos_clave'] = "Todos los parámetros dentro de rangos normales"
+        # Si es normal:
+        if interpretacion == 'normal':
+            # Caso 1: hallazgos vacíos → asignar texto estándar
+            if not hallazgos or hallazgos.strip() == '':
+                exam['hallazgos_clave'] = "Resultados dentro de parámetros normales"
+                logger.debug(
+                    f"Examen {exam.get('tipo', 'desconocido')} normal sin hallazgos, "
+                    f"asignando texto estándar"
+                )
+            # Caso 2: hallazgos detallados (>50 chars) → resumir
+            elif len(hallazgos) > 50:
+                exam['hallazgos_clave'] = "Todos los parámetros dentro de rangos normales"
+                logger.debug(
+                    f"Examen {exam.get('tipo', 'desconocido')} normal con hallazgos "
+                    f"detallados ({len(hallazgos)} chars), resumiendo"
+                )
+            # Caso 3: hallazgos cortos → conservar (puede ser específico)
 
         # Si es alterado o crítico, conservar TODO (no filtrar por ahora)
 
@@ -672,6 +773,11 @@ class ClaudeProcessor:
 
             # Parsear JSON
             historia_dict = self._parse_claude_response(response_text)
+
+            # Limpieza defensiva: Eliminar campos deprecados (eps, area)
+            if 'datos_empleado' in historia_dict and historia_dict['datos_empleado']:
+                historia_dict['datos_empleado'].pop('eps', None)
+                historia_dict['datos_empleado'].pop('area', None)
 
             # Postprocesamiento: Filtrar diagnósticos inválidos (nombres de exámenes)
             if 'diagnosticos' in historia_dict and historia_dict['diagnosticos']:
@@ -822,46 +928,53 @@ class ClaudeProcessor:
 
         filtered = []
 
+        # Whitelist de alertas administrativas (SIEMPRE filtrar)
+        ADMINISTRATIVE_KEYWORDS = [
+            'eps', 'arl', 'edad', 'sexo', 'cargo', 'area', 'empresa',
+            'antiguedad', 'afiliacion'
+        ]
+
         for alerta in alertas:
             should_filter = False
+            razon_filtrado = ""
 
-            # 1. Filtrar alerta de EPS/ARL faltante (administrativo, no clínico)
-            if (alerta.tipo == "dato_faltante" and
-                alerta.campo_afectado == "datos_empleado" and
-                "EPS" in alerta.descripcion and "ARL" in alerta.descripcion):
-                should_filter = True
-                logger.debug(f"Alerta administrativa filtrada: {alerta.descripcion}")
+            # Regla 1: Filtrar alertas administrativas (whitelist)
+            if alerta.tipo == "dato_faltante":
+                desc_lower = alerta.descripcion.lower()
+                campo_lower = (alerta.campo_afectado or "").lower()
 
-            # 2. En consolidados: filtrar alertas de campos que YA están poblados
-            if es_consolidado and alerta.tipo == "dato_faltante":
-                # Si alerta sobre tipo_emo pero el consolidado SÍ tiene tipo_emo
-                if alerta.campo_afectado == "tipo_emo" and historia.tipo_emo:
+                # Verificar si contiene alguna palabra administrativa
+                for keyword in ADMINISTRATIVE_KEYWORDS:
+                    if keyword in desc_lower or keyword in campo_lower:
+                        should_filter = True
+                        razon_filtrado = f"administrativa ({keyword})"
+                        break
+
+            # Regla 2: En consolidados, filtrar alertas de campos que YA están poblados
+            if not should_filter and es_consolidado and alerta.tipo == "dato_faltante":
+                campo = alerta.campo_afectado
+
+                # Mapeo de campos a verificar en el consolidado
+                campos_verificar = {
+                    'tipo_emo': historia.tipo_emo,
+                    'aptitud_laboral': historia.aptitud_laboral,
+                    'fecha_emo': historia.fecha_emo,
+                    'diagnosticos': len(historia.diagnosticos) > 0
+                }
+
+                if campo in campos_verificar and campos_verificar[campo]:
                     should_filter = True
-                    logger.debug(
-                        f"Alerta de consolidado filtrada (campo poblado): "
-                        f"{alerta.campo_afectado}"
-                    )
+                    razon_filtrado = f"campo poblado en consolidado ({campo})"
 
-                # Si alerta sobre aptitud pero el consolidado SÍ tiene aptitud
-                if alerta.campo_afectado == "aptitud_laboral" and historia.aptitud_laboral:
+            # Regla 3: En exámenes específicos, filtrar alerta de diagnóstico principal faltante
+            if not should_filter:
+                if (historia.tipo_documento_fuente == "examen_especifico" and
+                    "diagnóstico principal" in alerta.descripcion.lower()):
                     should_filter = True
-                    logger.debug(
-                        f"Alerta de consolidado filtrada (campo poblado): "
-                        f"{alerta.campo_afectado}"
-                    )
+                    razon_filtrado = "diagnóstico principal en examen específico"
 
-                # Si alerta sobre fecha_emo pero el consolidado SÍ tiene fecha_emo
-                if alerta.campo_afectado == "fecha_emo" and historia.fecha_emo:
-                    should_filter = True
-                    logger.debug(
-                        f"Alerta de consolidado filtrada (campo poblado): "
-                        f"{alerta.campo_afectado}"
-                    )
-
-            # 3. Evitar alertas duplicadas por descripción similar
-            # (múltiples fuentes pueden generar la misma alerta)
-            if es_consolidado:
-                # Si la alerta ya existe en filtered con misma descripción normalizada
+            # Regla 4: Evitar alertas duplicadas en consolidados
+            if not should_filter and es_consolidado:
                 desc_normalizada = normalize_text_for_comparison(alerta.descripcion)
                 ya_existe = any(
                     normalize_text_for_comparison(a.descripcion) == desc_normalizada
@@ -869,12 +982,19 @@ class ClaudeProcessor:
                 )
                 if ya_existe:
                     should_filter = True
-                    logger.debug(
-                        f"Alerta duplicada en consolidado filtrada: {alerta.descripcion[:50]}..."
-                    )
+                    razon_filtrado = "duplicada"
 
-            # Conservar si no debe filtrarse
-            if not should_filter:
+            # Regla 5: SIEMPRE conservar inconsistencias clínicas
+            if alerta.tipo in ["inconsistencia_diagnostica", "fecha_invalida"]:
+                should_filter = False
+                razon_filtrado = ""
+
+            # Aplicar filtrado
+            if should_filter:
+                logger.debug(
+                    f"Alerta filtrada ({razon_filtrado}): {alerta.descripcion[:60]}..."
+                )
+            else:
                 filtered.append(alerta)
 
         if len(filtered) < len(alertas):

@@ -318,10 +318,8 @@ class DatosEmpleado(BaseModel):
     edad: Optional[int] = Field(None, ge=0, le=120)
     sexo: Optional[Literal["M", "F", "O"]] = None
     cargo: Optional[str] = None
-    area: Optional[str] = None
     empresa: Optional[str] = None
     antiguedad_meses: Optional[int] = Field(None, ge=0)
-    eps: Optional[str] = Field(None, description="Entidad Promotora de Salud")
     arl: Optional[str] = Field(None, description="Administradora de Riesgos Laborales")
 
 
