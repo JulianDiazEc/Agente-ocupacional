@@ -22,6 +22,61 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+# Lista de términos que NO son diagnósticos (nombres de exámenes/procedimientos)
+INVALID_DIAGNOSIS_TERMS = [
+    'audiometr', 'rayos x', 'rayos-x', 'rx ', 'rx.', 'laboratorio',
+    'electrocardiograma', 'ecg', 'ekg', 'examen', 'evaluación',
+    'evaluacion', 'control', 'toma de', 'prueba', 'espirometr',
+    'optometr', 'visiometr', 'hemograma', 'glicemia', 'colesterol',
+    'creatinina', 'parcial de orina', 'coprológico', 'coprologico',
+    'ecografía', 'ecografia', 'resonancia', 'tomografía', 'tomografia',
+    'radiografía', 'radiografia', 'laboratorios', 'paraclínicos',
+    'paraclinicos', 'análisis', 'analisis'
+]
+
+
+def filter_invalid_diagnoses(diagnosticos: list[dict]) -> list[dict]:
+    """
+    Filtra diagnósticos que en realidad son nombres de exámenes o procedimientos.
+
+    Args:
+        diagnosticos: Lista de diagnósticos extraídos
+
+    Returns:
+        list[dict]: Diagnósticos válidos (filtrados)
+    """
+    if not diagnosticos:
+        return []
+
+    valid_diagnosticos = []
+
+    for diag in diagnosticos:
+        descripcion = diag.get('descripcion', '')
+        if not descripcion:
+            continue
+
+        descripcion_lower = descripcion.lower().strip()
+
+        # Verificar si contiene algún término inválido
+        is_invalid = any(
+            term in descripcion_lower
+            for term in INVALID_DIAGNOSIS_TERMS
+        )
+
+        if not is_invalid:
+            valid_diagnosticos.append(diag)
+        else:
+            logger.debug(
+                f"Diagnóstico filtrado (nombre de examen): '{descripcion}'"
+            )
+
+    logger.debug(
+        f"Filtrado de diagnósticos: {len(diagnosticos)} → {len(valid_diagnosticos)}"
+    )
+
+    return valid_diagnosticos
+
+
 class ClaudeProcessor:
     """
     Procesador de historias clínicas usando Claude API.
@@ -158,6 +213,12 @@ class ClaudeProcessor:
 
             # Parsear JSON
             historia_dict = self._parse_claude_response(response_text)
+
+            # Postprocesamiento: Filtrar diagnósticos inválidos (nombres de exámenes)
+            if 'diagnosticos' in historia_dict and historia_dict['diagnosticos']:
+                historia_dict['diagnosticos'] = filter_invalid_diagnoses(
+                    historia_dict['diagnosticos']
+                )
 
             # Agregar metadata
             historia_dict["archivo_origen"] = archivo_origen

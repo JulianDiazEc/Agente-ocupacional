@@ -286,14 +286,6 @@ class Recomendacion(BaseModel):
         default=False,
         description="Indica si requiere seguimiento médico"
     )
-    fecha_seguimiento: Optional[date] = Field(
-        None,
-        description="Fecha planeada para seguimiento"
-    )
-    prioridad: Literal["alta", "media", "baja"] = Field(
-        default="media",
-        description="Prioridad de la recomendación"
-    )
 
     @field_validator('requiere_seguimiento', mode='before')
     @classmethod

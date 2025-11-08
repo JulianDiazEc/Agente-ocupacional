@@ -101,6 +101,28 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
    - Identifica si son preexistentes o relacionados con el trabajo
    - Si el formato CIE-10 es incorrecto o falta, extrae de todas formas y genera alerta
 
+   ⚠️ REGLA ANTI-FALSOS POSITIVOS:
+   a) diagnosticos.tipo - SOLO cuando EXPLÍCITO:
+      ✅ Llenar SOLO si el documento dice textualmente:
+         - "diagnóstico principal", "Dx principal"
+         - "diagnóstico secundario", "Dx secundario"
+         - "hallazgo"
+      ❌ NO asumir por posición en lista o contexto
+      ❌ Si NO está explícito: dejar en null
+
+   b) diagnosticos.descripcion - DEBE ser diagnóstico REAL:
+      ✅ Extraer diagnósticos médicos reales:
+         - "Hipertensión arterial"
+         - "Diabetes mellitus tipo 2"
+         - "Hipoacusia neurosensorial bilateral"
+      ❌ NO extraer nombres de exámenes/procedimientos:
+         - "Audiometría" → NO es diagnóstico
+         - "Rayos X de tórax" → NO es diagnóstico
+         - "Laboratorio clínico" → NO es diagnóstico
+         - "Electrocardiograma" → NO es diagnóstico
+         - "Evaluación", "Control" → NO son diagnósticos
+      REGLA: Si dice el nombre de un examen, NO es un diagnóstico
+
 2. FECHAS:
    - Formato obligatorio: YYYY-MM-DD (ISO 8601)
    - Fecha del EMO, fecha de exámenes paraclínicos, fechas de seguimiento
@@ -117,7 +139,26 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
       - Signos vitales: PA, FC, FR, Temperatura, Saturación O2, IMC
       - Hallazgos en TODOS los sistemas explorados
 
-   b) LABORATORIOS CLÍNICOS - TODOS LOS VALORES:
+      ⚠️ REGLA ANTI-RUIDO DE NORMALIDAD:
+      - Si TODO el examen físico es NORMAL (ej: "cabeza normocéfala", "cuello simétrico sin masas", etc.):
+        → Resumir como: "examen físico sin hallazgos relevantes" o "sin hallazgos patológicos"
+      - Si hay hallazgos POSITIVOS/ANORMALES:
+        → Reportar SOLO los hallazgos positivos/anormales
+        → OMITIR listados largos de normalidad
+      - NO listar cada sistema normal individualmente si todos son normales
+      - Priorizar: RESUMEN + HALLAZGOS POSITIVOS solamente
+
+   b) ANTECEDENTES:
+      ⚠️ REGLA ANTI-FALSOS POSITIVOS - NEGACIÓN GLOBAL:
+      - Si el documento dice: "NIEGA antecedentes", "sin antecedentes personales/familiares",
+        "no refiere antecedentes", o similar:
+        → NO crear entradas individuales por categoría con texto "NIEGA" o "sin antecedentes"
+        → Crear UNA SOLA entrada:
+          * tipo: "general" (o el tipo más apropiado si especifica)
+          * descripcion: "sin antecedentes relevantes" o "niega antecedentes personales y familiares"
+      - Si menciona antecedentes ESPECÍFICOS: extraer normalmente con su categoría
+
+   c) LABORATORIOS CLÍNICOS - TODOS LOS VALORES:
       - Hemograma, glucemia, perfil lipídico, función renal/hepática, etc.
       - FORMATO: "Nombre: Valor (Rango: X-Y) [Estado: normal/alto/bajo]"
 
@@ -179,18 +220,26 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
 7. DATOS DEL EMPLEADO - REGLAS ANTI-FALSOS POSITIVOS:
 
    a) TIPO DE DOCUMENTO:
-      ✅ EXTRAER solo si aparece como campo explícito:
-         - "Tipo de documento: CC"
-         - "Documento: CC 12345678"
-         - "Cédula de Ciudadanía"
+      ⚠️ REGLA CRÍTICA ANTI-FALSOS POSITIVOS:
+      ✅ Extraer SOLO si aparece etiqueta EXPLÍCITA:
+         - "Tipo de documento: CC" → tipo_documento: "CC"
+         - "Documento: CC 12345678" → tipo_documento: "CC"
+         - "Cédula de Ciudadanía N°..." → tipo_documento: "CC"
+         - "C.C:" o "CC:" seguido de número → tipo_documento: "CC"
+         - "TI:" o "Tarjeta de Identidad:" → tipo_documento: "TI"
+         - "CE:" o "Cédula de Extranjería:" → tipo_documento: "CE"
+         - "Pasaporte:" → tipo_documento: "PEP" o "PPT"
 
-      ❌ NO EXTRAER si "CC" aparece dentro de palabras:
-         - "dire**cc**ión" → NO es tipo_documento
-         - "protec**cc**ión" → NO es tipo_documento
-         - "reac**cc**ión" → NO es tipo_documento
+      ❌ NO EXTRAER en estos casos:
+         - "CC" aparece dentro de palabras: "dire**cc**ión", "protec**cc**ión", "reac**cc**ión"
+         - "CC" aparece en contexto NO relacionado con identificación
+         - Ejemplo: "dirección CC 123" → NO extraer "CC" como tipo_documento
 
-      REGLA: Solo extraer cuando "CC", "CE", "TI", etc. aparezcan como PALABRA COMPLETA
-      asociada a identificación, NO como parte de otra palabra.
+      REGLA ESTRICTA:
+      - Usar búsqueda de PALABRA COMPLETA (word boundary)
+      - El tipo de documento debe estar asociado a sección de identificación/datos personales
+      - NO inferir solo por formato de número (ej: un número de 8 dígitos NO implica que sea CC)
+      - Si hay CUALQUIER duda: usar null
 
    b) CARGO:
       ✅ EXTRAER cargos específicos y útiles:
@@ -416,6 +465,28 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
    - Identifica si son preexistentes o relacionados con el trabajo
    - Si el formato CIE-10 es incorrecto o falta, extrae de todas formas y genera alerta
 
+   ⚠️ REGLA ANTI-FALSOS POSITIVOS:
+   a) diagnosticos.tipo - SOLO cuando EXPLÍCITO:
+      ✅ Llenar SOLO si el documento dice textualmente:
+         - "diagnóstico principal", "Dx principal"
+         - "diagnóstico secundario", "Dx secundario"
+         - "hallazgo"
+      ❌ NO asumir por posición en lista o contexto
+      ❌ Si NO está explícito: dejar en null
+
+   b) diagnosticos.descripcion - DEBE ser diagnóstico REAL:
+      ✅ Extraer diagnósticos médicos reales:
+         - "Hipertensión arterial"
+         - "Diabetes mellitus tipo 2"
+         - "Hipoacusia neurosensorial bilateral"
+      ❌ NO extraer nombres de exámenes/procedimientos:
+         - "Audiometría" → NO es diagnóstico
+         - "Rayos X de tórax" → NO es diagnóstico
+         - "Laboratorio clínico" → NO es diagnóstico
+         - "Electrocardiograma" → NO es diagnóstico
+         - "Evaluación", "Control" → NO son diagnósticos
+      REGLA: Si dice el nombre de un examen, NO es un diagnóstico
+
 2. FECHAS:
    - Formato obligatorio: YYYY-MM-DD (ISO 8601)
    - Fecha del EMO, fecha de exámenes paraclínicos, fechas de seguimiento
@@ -428,18 +499,52 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
    El médico humano decidirá qué es importante.
 
 4. APTITUD LABORAL:
-   Busca EXPLÍCITAMENTE el concepto de aptitud. Valores posibles:
-   - "apto" / "apto_sin_restricciones"
-   - "apto_con_recomendaciones"
-   - "apto_con_restricciones"
-   - "no_apto_temporal"
-   - "no_apto_definitivo"
-   - "pendiente"
-   Si no está explícito, usa null y genera alerta.
+   ⚠️ REGLA CRÍTICA - SOLO CONCEPTO EXPLÍCITO:
+   - Extrae EXACTAMENTE lo que dice el certificado/concepto médico ocupacional
+   - NO interpretar ni modificar basándose en:
+     * Presencia de recomendaciones
+     * Hallazgos en exámenes
+     * Diagnósticos encontrados
+
+   Valores posibles:
+   - "apto" / "apto_sin_restricciones" → Si dice "APTO" sin restricciones
+   - "apto_con_recomendaciones" → Si dice "APTO CON RECOMENDACIONES"
+   - "apto_con_restricciones" → Si dice "APTO CON RESTRICCIONES"
+   - "no_apto_temporal" → Si dice "NO APTO TEMPORAL"
+   - "no_apto_definitivo" → Si dice "NO APTO DEFINITIVO"
+   - "pendiente" → Si dice "PENDIENTE"
+
+   IMPORTANTE:
+   - Si dice "APTO", es "apto" (aunque haya recomendaciones de seguimiento)
+   - Si NO hay concepto explícito de aptitud: usar null
+   - NO cambiar aptitud solo porque hay hallazgos o recomendaciones
 
 5. RECOMENDACIONES - SOLO LAS ESPECÍFICAS:
-   ✅ EXTRAER: Remisiones a especialistas, exámenes complementarios, inclusión SVE, restricciones con valores
-   ❌ NO EXTRAER: "Pausas activas", "Uso de EPP", "Mantener hábitos saludables"
+   ✅ EXTRAER:
+   - Remisiones a especialistas
+   - Exámenes complementarios específicos
+   - Inclusión en programas SVE
+   - Tratamientos específicos
+
+   ❌ NO EXTRAER (genéricas):
+   - "Pausas activas"
+   - "Uso de EPP"
+   - "Mantener hábitos saludables"
+
+   ⚠️ CAMPOS A LLENAR:
+   - tipo: (remision_especialista, examen_complementario, inclusion_sve, tratamiento, restriccion_laboral, ajuste_ergonomico, seguimiento)
+   - descripcion: texto específico de la recomendación
+   - vigencia_meses: solo si se menciona explícitamente
+   - requiere_seguimiento: true/false
+
+   ⚠️ RESTRICCIÓN LABORAL vs RECOMENDACIÓN GENERAL:
+   - Marcar tipo como "restriccion_laboral" SOLO cuando el documento diga EXPLÍCITAMENTE:
+     * "restricción para..."
+     * "no apto para..."
+     * "limitación laboral para..."
+     * "debe evitar..." (en contexto de limitación)
+   - Recomendaciones de seguimiento médico/controles: tipo "seguimiento", NO "restriccion_laboral"
+   - Remisiones a especialistas: tipo "remision_especialista", NO "restriccion_laboral"
 
 6. VALIDACIÓN Y ALERTAS:
    Genera alertas cuando detectes:
@@ -451,18 +556,26 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
 7. DATOS DEL EMPLEADO - REGLAS ANTI-FALSOS POSITIVOS:
 
    a) TIPO DE DOCUMENTO:
-      ✅ EXTRAER solo si aparece como campo explícito:
-         - "Tipo de documento: CC"
-         - "Documento: CC 12345678"
-         - "Cédula de Ciudadanía"
+      ⚠️ REGLA CRÍTICA ANTI-FALSOS POSITIVOS:
+      ✅ Extraer SOLO si aparece etiqueta EXPLÍCITA:
+         - "Tipo de documento: CC" → tipo_documento: "CC"
+         - "Documento: CC 12345678" → tipo_documento: "CC"
+         - "Cédula de Ciudadanía N°..." → tipo_documento: "CC"
+         - "C.C:" o "CC:" seguido de número → tipo_documento: "CC"
+         - "TI:" o "Tarjeta de Identidad:" → tipo_documento: "TI"
+         - "CE:" o "Cédula de Extranjería:" → tipo_documento: "CE"
+         - "Pasaporte:" → tipo_documento: "PEP" o "PPT"
 
-      ❌ NO EXTRAER si "CC" aparece dentro de palabras:
-         - "dire**cc**ión" → NO es tipo_documento
-         - "protec**cc**ión" → NO es tipo_documento
-         - "reac**cc**ión" → NO es tipo_documento
+      ❌ NO EXTRAER en estos casos:
+         - "CC" aparece dentro de palabras: "dire**cc**ión", "protec**cc**ión", "reac**cc**ión"
+         - "CC" aparece en contexto NO relacionado con identificación
+         - Ejemplo: "dirección CC 123" → NO extraer "CC" como tipo_documento
 
-      REGLA: Solo extraer cuando "CC", "CE", "TI", etc. aparezcan como PALABRA COMPLETA
-      asociada a identificación, NO como parte de otra palabra.
+      REGLA ESTRICTA:
+      - Usar búsqueda de PALABRA COMPLETA (word boundary)
+      - El tipo de documento debe estar asociado a sección de identificación/datos personales
+      - NO inferir solo por formato de número (ej: un número de 8 dígitos NO implica que sea CC)
+      - Si hay CUALQUIER duda: usar null
 
    b) CARGO:
       ✅ EXTRAER cargos específicos y útiles:
