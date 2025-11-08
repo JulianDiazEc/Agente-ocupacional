@@ -22,8 +22,9 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-# Lista de términos que NO son diagnósticos (nombres de exámenes/procedimientos)
+# Lista de términos que NO son diagnósticos (nombres de exámenes/procedimientos/hallazgos normales)
 INVALID_DIAGNOSIS_TERMS = [
+    # Exámenes/procedimientos
     'audiometr', 'rayos x', 'rayos-x', 'rx ', 'rx.', 'laboratorio',
     'electrocardiograma', 'ecg', 'ekg', 'examen', 'evaluación',
     'evaluacion', 'control', 'toma de', 'prueba', 'espirometr',
@@ -31,13 +32,21 @@ INVALID_DIAGNOSIS_TERMS = [
     'creatinina', 'parcial de orina', 'coprológico', 'coprologico',
     'ecografía', 'ecografia', 'resonancia', 'tomografía', 'tomografia',
     'radiografía', 'radiografia', 'laboratorios', 'paraclínicos',
-    'paraclinicos', 'análisis', 'analisis'
+    'paraclinicos', 'análisis', 'analisis',
+
+    # Hallazgos normales / sin enfermedad
+    'normal', 'sin hallazgos', 'examen ocupacional', 'control rutinario',
+    'audicion normal', 'vision normal', 'dentro de limites normales',
+    'sin alteraciones', 'sin patologia', 'sin anormalidades'
 ]
 
 
 def filter_invalid_diagnoses(diagnosticos: list[dict]) -> list[dict]:
     """
-    Filtra diagnósticos que en realidad son nombres de exámenes o procedimientos.
+    Filtra diagnósticos que en realidad son:
+    - Nombres de exámenes/procedimientos
+    - Hallazgos normales
+    - Contactos administrativos
 
     Args:
         diagnosticos: Lista de diagnósticos extraídos
@@ -52,6 +61,8 @@ def filter_invalid_diagnoses(diagnosticos: list[dict]) -> list[dict]:
 
     for diag in diagnosticos:
         descripcion = diag.get('descripcion', '')
+        codigo = diag.get('codigo_cie10', '')
+
         if not descripcion:
             continue
 
@@ -63,11 +74,20 @@ def filter_invalid_diagnoses(diagnosticos: list[dict]) -> list[dict]:
             for term in INVALID_DIAGNOSIS_TERMS
         )
 
+        # Caso especial: códigos de audición con descripción "normal"
+        # Ejemplo: H90.9 con descripción "audición normal bilateral"
+        if 'normal' in descripcion_lower and not is_invalid:
+            # Si la descripción dice "normal", es hallazgo normal, no diagnóstico
+            is_invalid = True
+            logger.debug(
+                f"Diagnóstico filtrado (hallazgo normal): '{descripcion}' ({codigo})"
+            )
+
         if not is_invalid:
             valid_diagnosticos.append(diag)
         else:
             logger.debug(
-                f"Diagnóstico filtrado (nombre de examen): '{descripcion}'"
+                f"Diagnóstico filtrado: '{descripcion}' ({codigo})"
             )
 
     logger.debug(
@@ -77,25 +97,49 @@ def filter_invalid_diagnoses(diagnosticos: list[dict]) -> list[dict]:
     return valid_diagnosticos
 
 
-# Lista de patrones genéricos a filtrar (normalizados sin tildes ni mayúsculas)
-GENERIC_RECOMMENDATION_PATTERNS = [
-    'pausas activas', 'pausas laborales', 'pausas de descanso',
-    'uso de epp', 'uso de elementos de proteccion', 'hacer uso de epp',
-    'uso de equipo de proteccion',
-    'mantener habitos saludables', 'estilo de vida saludable',
-    'realizar ejercicio', 'actividad fisica regular', 'ejercicio regular',
-    'alimentacion sana', 'alimentacion saludable', 'dieta balanceada',
-    'hidratacion', 'tomar agua', 'consumo de agua',
-    'higiene postural', 'buena postura', 'adoptar buena postura',
-    'adoptar postura', 'corregir postura',
-    'seguridad vial', 'apto para conduccion', 'conduccion segura',
-    'llevar estilo de vida', 'mantener vida saludable'
+# Grupos de tokens genéricos para detección de recomendaciones no específicas
+GENERIC_TOKEN_GROUPS = [
+    # EPP genérico
+    (['uso', 'epp'], []),
+    (['elementos', 'proteccion', 'personal'], []),
+    (['uso', 'adecuado', 'elementos'], []),
+
+    # Estilo de vida
+    (['habitos', 'saludable'], []),
+    (['estilo', 'vida', 'saludable'], []),
+    (['continuar', 'habitos'], []),
+
+    # Ejercicio genérico
+    (['ejercicio', 'fisico'], []),
+    (['150', 'minutos'], ['semana']),
+    (['actividad', 'fisica', 'regular'], []),
+
+    # Fotoprotección genérica
+    (['fotoproteccion'], []),
+    (['proteccion', 'solar'], []),
+    (['uso', 'regular', 'fotoproteccion'], []),
+
+    # Seguridad vial genérica
+    (['seguridad', 'vial'], []),
+    (['apto', 'conduccion'], []),
+
+    # Pausas
+    (['pausas', 'activas'], []),
+    (['pausas', 'laborales'], []),
+
+    # Postura
+    (['buena', 'postura'], []),
+    (['higiene', 'postural'], []),
+
+    # Hidratación
+    (['hidratacion'], []),
+    (['consumo', 'agua'], []),
 ]
 
 
 def normalize_text_for_comparison(text: str) -> str:
     """
-    Normaliza texto para comparación: lowercase, sin tildes, sin símbolos.
+    Normaliza texto para comparación: lowercase, sin tildes, sin dobles espacios.
 
     Args:
         text: Texto a normalizar
@@ -108,12 +152,46 @@ def normalize_text_for_comparison(text: str) -> str:
     # Remover tildes
     text = unicodedata.normalize('NFD', text)
     text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    # Remover dobles espacios
+    text = ' '.join(text.split())
     return text
+
+
+def contains_token_group(text_normalized: str, required_tokens: list, optional_tokens: list) -> bool:
+    """
+    Verifica si el texto contiene un grupo de tokens requeridos.
+
+    Args:
+        text_normalized: Texto normalizado
+        required_tokens: Tokens que deben estar presentes
+        optional_tokens: Tokens opcionales (mejoran coincidencia)
+
+    Returns:
+        bool: True si contiene todos los tokens requeridos
+    """
+    # Todos los tokens requeridos deben estar presentes
+    has_all_required = all(token in text_normalized for token in required_tokens)
+
+    if not has_all_required:
+        return False
+
+    # Si hay tokens opcionales, al menos uno debe estar presente (mejora precisión)
+    if optional_tokens:
+        has_optional = any(token in text_normalized for token in optional_tokens)
+        return has_optional
+
+    return True
 
 
 def filter_generic_recommendations(recomendaciones: list[dict]) -> list[dict]:
     """
-    Filtra recomendaciones genéricas que no aportan valor clínico específico.
+    Filtra recomendaciones genéricas usando detección por grupos de tokens.
+
+    Cambiado de matching literal a detección por combinaciones de términos
+    para capturar variantes como:
+    - "Uso adecuado de los elementos de protección personal"
+    - "Ejercicio físico regularmente al menos 150 minutos"
+    - "Continuar hábitos y estilos de vida saludable"
 
     Args:
         recomendaciones: Lista de recomendaciones extraídas
@@ -133,22 +211,61 @@ def filter_generic_recommendations(recomendaciones: list[dict]) -> list[dict]:
 
         desc_normalized = normalize_text_for_comparison(descripcion)
 
-        # Verificar si contiene algún patrón genérico
-        is_generic = any(
-            pattern in desc_normalized
-            for pattern in GENERIC_RECOMMENDATION_PATTERNS
-        )
+        # Verificar si contiene algún grupo de tokens genéricos
+        is_generic = False
+        for required_tokens, optional_tokens in GENERIC_TOKEN_GROUPS:
+            if contains_token_group(desc_normalized, required_tokens, optional_tokens):
+                is_generic = True
+                logger.debug(
+                    f"Recomendación genérica filtrada (tokens: {required_tokens}): '{descripcion}'"
+                )
+                break
 
         if not is_generic:
             filtered.append(rec)
-        else:
-            logger.debug(f"Recomendación genérica filtrada: '{descripcion}'")
 
     logger.debug(
         f"Filtrado de recomendaciones: {len(recomendaciones)} → {len(filtered)}"
     )
 
     return filtered
+
+
+def deduplicate_recommendations(recomendaciones: list[dict]) -> list[dict]:
+    """
+    Elimina recomendaciones duplicadas basándose en descripción normalizada.
+
+    Args:
+        recomendaciones: Lista de recomendaciones
+
+    Returns:
+        list[dict]: Recomendaciones sin duplicados
+    """
+    if not recomendaciones:
+        return []
+
+    seen_descriptions = set()
+    deduplicated = []
+
+    for rec in recomendaciones:
+        descripcion = rec.get('descripcion', '')
+        if not descripcion:
+            continue
+
+        desc_normalized = normalize_text_for_comparison(descripcion)
+
+        if desc_normalized not in seen_descriptions:
+            seen_descriptions.add(desc_normalized)
+            deduplicated.append(rec)
+        else:
+            logger.debug(f"Recomendación duplicada eliminada: '{descripcion}'")
+
+    if len(deduplicated) < len(recomendaciones):
+        logger.debug(
+            f"Deduplicación de recomendaciones: {len(recomendaciones)} → {len(deduplicated)}"
+        )
+
+    return deduplicated
 
 
 def reclassify_epp_as_recommendations(historia_dict: dict) -> dict:
@@ -227,6 +344,11 @@ NEGATION_TERMS = [
     "sin antecedentes",
     "no refiere antecedentes",
     "no refiere antecedentes de importancia",
+    " no",  # Para patrones como "Vértigo: NO", "Fobia: NO"
+    ": no",
+    "no aplica",
+    "n/a",
+    "sin datos",
 ]
 
 
@@ -235,13 +357,20 @@ def is_pure_negation(desc: str) -> bool:
     Determina si una descripción de antecedente es una negación pura.
 
     Una negación pura es texto que solo indica ausencia de antecedentes,
-    sin mencionar condiciones clínicas específicas.
+    sin mencionar condiciones clínicas afirmativas.
+
+    Detecta patrones como:
+    - "NIEGA"
+    - "Sin antecedentes"
+    - "Vértigo: NO"
+    - "Fobia: NO"
+    - "No aplica"
 
     Args:
         desc: Descripción del antecedente
 
     Returns:
-        bool: True si es negación pura, False si contiene información clínica
+        bool: True si es negación pura, False si contiene información clínica afirmativa
     """
     if not desc:
         return False
@@ -252,17 +381,29 @@ def is_pure_negation(desc: str) -> bool:
     if len(text) > 80:
         return False
 
+    # Patrones de negación
     negation_hit = any(term in text for term in NEGATION_TERMS)
 
-    # Si menciona alguna condición concreta, no es solo negación
-    clinical_keywords = [
-        "hipertension", "hta", "diabetes", "dm", "asma",
-        "fractura", "cirugia", "tumor", "cancer", "epilepsia",
-        "alergia", "medicamento", "tratamiento", "hospitalizacion"
-    ]
-    has_clinical = any(k in text for k in clinical_keywords)
+    # Patrón específico: "término: no" (muy corto, solo niega)
+    # Ejemplo: "Vertigo: NO" → len ~12, tiene "no", no tiene afirmación
+    if len(text) < 30 and ' no' in text:
+        negation_hit = True
 
-    return negation_hit and not has_clinical
+    # Si no hay hit de negación, no es negación pura
+    if not negation_hit:
+        return False
+
+    # Si menciona alguna condición concreta AFIRMATIVA, no es solo negación
+    # Keywords que indican antecedente REAL (no solo "Diabetes: NO")
+    clinical_affirmative_keywords = [
+        "diagnostico", "desde", "hace", "años", "meses",
+        "tratamiento con", "medicamento", "cirugia de", "fractura de",
+        "hospitalizacion por", "episodio de"
+    ]
+    has_affirmative_clinical = any(k in text for k in clinical_affirmative_keywords)
+
+    # Es negación pura si: tiene negación AND NO tiene afirmación clínica
+    return negation_hit and not has_affirmative_clinical
 
 
 def consolidate_negation_antecedentes(antecedentes: list[dict]) -> list[dict]:
@@ -315,7 +456,10 @@ def summarize_normal_physical_exam(hallazgos: str) -> str:
     """
     Resume hallazgos_examen_fisico cuando no hay hallazgos patológicos.
 
-    Criterio semántico (no cuantitativo):
+    Criterio: Buscar SOLO términos claramente patológicos.
+    "negativo/negativas" NO son patológicos (son parte de normalidad).
+
+    Reglas:
     - Si NO hay palabras patológicas
     - Y el texto supera 200 caracteres
     - Entonces resumir como "sin hallazgos patológicos relevantes"
@@ -331,12 +475,15 @@ def summarize_normal_physical_exam(hallazgos: str) -> str:
 
     text_lower = normalize_text_for_comparison(hallazgos)
 
-    # Indicadores de hallazgos patológicos
+    # Indicadores de hallazgos CLARAMENTE patológicos
+    # NO incluir: "negativo", "negativas", "sin", "normal" (son normalidad)
     pathologic_indicators = [
-        "dolor", "inflamacion", "edema", "masa", "tumoracion",
-        "positivo", "alterado", "aumentado", "disminuido",
-        "limitacion", "restringido", "anormal", "patologico",
-        "hipertrofia", "atrofia", "lesion", "fractura", "deformidad"
+        "dolor", "masa", "hernia", "tumor", "edema",
+        "inflamado", "inflamacion", "limitacion", "disminuido",
+        "aumentado", "ulcera", "lesion", "fractura",
+        "deformidad", "atrofia", "hipertrofia", "espasmo",
+        "rigidez", "contractura", "adenopatia", "soplo",
+        "arritmia", "crepitacion", "derrame"
     ]
 
     # Si tiene hallazgos patológicos, conservar completo
@@ -537,6 +684,10 @@ class ClaudeProcessor:
                 historia_dict['recomendaciones'] = filter_generic_recommendations(
                     historia_dict['recomendaciones']
                 )
+                # Deduplicar después de filtrar genéricas
+                historia_dict['recomendaciones'] = deduplicate_recommendations(
+                    historia_dict['recomendaciones']
+                )
 
             # Postprocesamiento: Reclasificar EPP mal ubicado en restricciones
             historia_dict = reclassify_epp_as_recommendations(historia_dict)
@@ -573,7 +724,8 @@ class ClaudeProcessor:
 
             # Filtrar alertas innecesarias/ruido
             historia.alertas_validacion = self._filter_unnecessary_alerts(
-                historia.alertas_validacion
+                historia.alertas_validacion,
+                historia
             )
 
             # Calcular confianza si no fue calculada
@@ -631,15 +783,22 @@ class ClaudeProcessor:
             "Verifique los logs para más detalles."
         )
 
-    def _filter_unnecessary_alerts(self, alertas: list) -> list:
+    def _filter_unnecessary_alerts(
+        self,
+        alertas: list,
+        historia: HistoriaClinicaEstructurada
+    ) -> list:
         """
         Filtra alertas innecesarias o de ruido administrativo.
 
         Alertas eliminadas:
         - Falta de EPS/ARL (dato administrativo, no clínico)
+        - En consolidados: alertas de tipo_emo/aptitud faltante si ya están poblados
+        - En consolidados con exámenes específicos: alertas de campos que solo aplican a HC completa
 
         Args:
             alertas: Lista de alertas
+            historia: Historia clínica procesada
 
         Returns:
             list: Alertas filtradas
@@ -647,18 +806,76 @@ class ClaudeProcessor:
         if not alertas:
             return []
 
+        # Detectar si es consolidado
+        historia_dict = historia.model_dump()
+        archivos_consolidados = historia_dict.get('archivos_origen_consolidados', [])
+        es_consolidado = bool(archivos_consolidados)
+
+        # Si es consolidado, verificar si hay exámenes específicos en las fuentes
+        tiene_examenes_especificos = False
+        if es_consolidado:
+            # Los archivos origen consolidados están en el JSON como metadata
+            # pero no están disponibles aquí directamente
+            # Asumiremos que si tipo_documento_fuente == 'hc_completa' pero
+            # hay múltiples archivos, puede haber exámenes específicos consolidados
+            tiene_examenes_especificos = len(archivos_consolidados) > 1
+
         filtered = []
 
         for alerta in alertas:
-            # Filtrar alerta de EPS/ARL faltante
+            should_filter = False
+
+            # 1. Filtrar alerta de EPS/ARL faltante (administrativo, no clínico)
             if (alerta.tipo == "dato_faltante" and
                 alerta.campo_afectado == "datos_empleado" and
                 "EPS" in alerta.descripcion and "ARL" in alerta.descripcion):
+                should_filter = True
                 logger.debug(f"Alerta administrativa filtrada: {alerta.descripcion}")
-                continue
 
-            # Conservar el resto de alertas
-            filtered.append(alerta)
+            # 2. En consolidados: filtrar alertas de campos que YA están poblados
+            if es_consolidado and alerta.tipo == "dato_faltante":
+                # Si alerta sobre tipo_emo pero el consolidado SÍ tiene tipo_emo
+                if alerta.campo_afectado == "tipo_emo" and historia.tipo_emo:
+                    should_filter = True
+                    logger.debug(
+                        f"Alerta de consolidado filtrada (campo poblado): "
+                        f"{alerta.campo_afectado}"
+                    )
+
+                # Si alerta sobre aptitud pero el consolidado SÍ tiene aptitud
+                if alerta.campo_afectado == "aptitud_laboral" and historia.aptitud_laboral:
+                    should_filter = True
+                    logger.debug(
+                        f"Alerta de consolidado filtrada (campo poblado): "
+                        f"{alerta.campo_afectado}"
+                    )
+
+                # Si alerta sobre fecha_emo pero el consolidado SÍ tiene fecha_emo
+                if alerta.campo_afectado == "fecha_emo" and historia.fecha_emo:
+                    should_filter = True
+                    logger.debug(
+                        f"Alerta de consolidado filtrada (campo poblado): "
+                        f"{alerta.campo_afectado}"
+                    )
+
+            # 3. Evitar alertas duplicadas por descripción similar
+            # (múltiples fuentes pueden generar la misma alerta)
+            if es_consolidado:
+                # Si la alerta ya existe en filtered con misma descripción normalizada
+                desc_normalizada = normalize_text_for_comparison(alerta.descripcion)
+                ya_existe = any(
+                    normalize_text_for_comparison(a.descripcion) == desc_normalizada
+                    for a in filtered
+                )
+                if ya_existe:
+                    should_filter = True
+                    logger.debug(
+                        f"Alerta duplicada en consolidado filtrada: {alerta.descripcion[:50]}..."
+                    )
+
+            # Conservar si no debe filtrarse
+            if not should_filter:
+                filtered.append(alerta)
 
         if len(filtered) < len(alertas):
             logger.debug(f"Alertas filtradas: {len(alertas)} → {len(filtered)}")
