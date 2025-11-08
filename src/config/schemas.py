@@ -143,9 +143,9 @@ class Diagnostico(BaseModel):
         pattern=r"^[A-Z]\d{2}\.\d$"
     )
     descripcion: str = Field(..., description="Descripción del diagnóstico")
-    tipo: Literal["principal", "secundario", "hallazgo"] = Field(
-        ...,
-        description="Tipo de diagnóstico"
+    tipo: Optional[Literal["principal", "secundario", "hallazgo"]] = Field(
+        None,
+        description="Tipo de diagnóstico (solo cuando está explícito en el documento)"
     )
     relacionado_trabajo: bool = Field(
         default=False,
