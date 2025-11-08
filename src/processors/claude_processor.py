@@ -221,6 +221,96 @@ def reclassify_epp_as_recommendations(historia_dict: dict) -> dict:
     return historia_dict
 
 
+# Términos de negación para antecedentes
+NEGATION_TERMS = [
+    "niega",
+    "sin antecedentes",
+    "no refiere antecedentes",
+    "no refiere antecedentes de importancia",
+]
+
+
+def is_pure_negation(desc: str) -> bool:
+    """
+    Determina si una descripción de antecedente es una negación pura.
+
+    Una negación pura es texto que solo indica ausencia de antecedentes,
+    sin mencionar condiciones clínicas específicas.
+
+    Args:
+        desc: Descripción del antecedente
+
+    Returns:
+        bool: True si es negación pura, False si contiene información clínica
+    """
+    if not desc:
+        return False
+
+    text = normalize_text_for_comparison(desc)
+
+    # Descripciones muy largas suelen incluir más contexto: no son negación pura
+    if len(text) > 80:
+        return False
+
+    negation_hit = any(term in text for term in NEGATION_TERMS)
+
+    # Si menciona alguna condición concreta, no es solo negación
+    clinical_keywords = [
+        "hipertension", "hta", "diabetes", "dm", "asma",
+        "fractura", "cirugia", "tumor", "cancer", "epilepsia",
+        "alergia", "medicamento", "tratamiento", "hospitalizacion"
+    ]
+    has_clinical = any(k in text for k in clinical_keywords)
+
+    return negation_hit and not has_clinical
+
+
+def consolidate_negation_antecedentes(antecedentes: list[dict]) -> list[dict]:
+    """
+    Elimina antecedentes que son solo negaciones genéricas.
+
+    Reglas:
+    1. Si TODOS los antecedentes son negaciones puras → devuelve lista vacía
+       (se interpreta como "sin antecedentes relevantes")
+    2. Si hay mezcla → elimina solo las negaciones puras, conserva los específicos
+
+    No genera texto sintético, solo filtra lo que ya existe.
+
+    Args:
+        antecedentes: Lista de antecedentes extraídos
+
+    Returns:
+        list[dict]: Antecedentes filtrados (puede ser lista vacía)
+    """
+    if not antecedentes:
+        return []
+
+    cleaned = []
+    saw_negation = False
+
+    for ant in antecedentes:
+        desc = (ant.get("descripcion") or "").strip()
+        if is_pure_negation(desc):
+            saw_negation = True
+            logger.debug(f"Antecedente con negación pura filtrado: '{desc}'")
+            continue
+        cleaned.append(ant)
+
+    # Si solo había negaciones genéricas → lista vacía
+    if saw_negation and not cleaned:
+        logger.debug(
+            f"Todos los antecedentes eran negaciones puras, "
+            f"devolviendo lista vacía (sin antecedentes relevantes)"
+        )
+        return []
+
+    logger.debug(
+        f"Filtrado de antecedentes: {len(antecedentes)} → {len(cleaned)}"
+    )
+
+    return cleaned
+
+
 class ClaudeProcessor:
     """
     Procesador de historias clínicas usando Claude API.
@@ -372,6 +462,12 @@ class ClaudeProcessor:
 
             # Postprocesamiento: Reclasificar EPP mal ubicado en restricciones
             historia_dict = reclassify_epp_as_recommendations(historia_dict)
+
+            # Postprocesamiento: Consolidar antecedentes con negaciones puras
+            if 'antecedentes' in historia_dict and historia_dict['antecedentes']:
+                historia_dict['antecedentes'] = consolidate_negation_antecedentes(
+                    historia_dict['antecedentes']
+                )
 
             # Agregar metadata
             historia_dict["archivo_origen"] = archivo_origen
