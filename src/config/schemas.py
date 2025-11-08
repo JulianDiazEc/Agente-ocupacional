@@ -545,10 +545,6 @@ class HistoriaClinicaEstructurada(BaseModel):
     def validar_consistencia(self) -> 'HistoriaClinicaEstructurada':
         """Validaciones de consistencia entre campos."""
 
-        # Si hay restricciones, la aptitud debe indicarlo
-        if self.restricciones_especificas and self.aptitud_laboral == "apto":
-            self.aptitud_laboral = "apto_con_restricciones"
-
         # Si genera reincorporación, debe haber causa
         if self.genera_reincorporacion and not self.causa_reincorporacion:
             self.alertas_validacion.append(

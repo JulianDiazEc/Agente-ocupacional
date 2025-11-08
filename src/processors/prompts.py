@@ -263,12 +263,12 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
       - Sexo: Solo M, F, O (no "masculino", "femenino" - convertir a letra)
       - Documento: Extraer el número completo sin puntos ni espacios
 
-8. DATOS FALTANTES:
+9. DATOS FALTANTES:
    - Si un campo no está en la HC, usa null
    - NO inventes valores médicos
    - Si algo es ambiguo, extráelo y marca confianza baja + alerta
 
-9. NIVEL DE CONFIANZA:
+10. NIVEL DE CONFIANZA:
    - 1.0: Dato explícito y claro
    - 0.9: Dato explícito pero formato no estándar
    - 0.7: Dato con jerga médica ambigua
@@ -546,14 +546,44 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
    - Recomendaciones de seguimiento médico/controles: tipo "seguimiento", NO "restriccion_laboral"
    - Remisiones a especialistas: tipo "remision_especialista", NO "restriccion_laboral"
 
-6. VALIDACIÓN Y ALERTAS:
+6. RESTRICCIONES LABORALES (campo restricciones_especificas):
+
+   ⚠️ DISTINCIÓN CRÍTICA - Restricción vs Recomendación:
+
+   restricciones_especificas es un campo de TEXTO LIBRE que contiene SOLO:
+   - Limitaciones o PROHIBICIONES de ACTIVIDAD LABORAL específicas
+
+   ✅ SÍ va en restricciones_especificas:
+      - "No levantar cargas mayores a 15kg"
+      - "No trabajar en alturas superiores a 1.5m"
+      - "Evitar exposición a solventes orgánicos"
+      - "No conducir vehículos"
+      - "No trabajar en turno nocturno"
+      - "Evitar movimientos repetitivos de flexo-extensión de muñeca"
+      - "No permanecer de pie por más de 4 horas continuas"
+
+   ❌ NO va en restricciones_especificas (van en recomendaciones):
+      - "Uso de lentes de corrección" → Es recomendación de EPP
+      - "Uso de protector auditivo" → Es recomendación de EPP
+      - "Uso de guantes" → Es recomendación de EPP
+      - "Control médico en 6 meses" → Es recomendación de seguimiento
+      - "Remisión a oftalmología" → Es recomendación de remisión
+      - "Pausas activas" → Es recomendación general
+      - "Ajuste de silla ergonómica" → Es recomendación de ajuste ergonómico
+
+   REGLA DE ORO:
+   - Si dice "NO [verbo]" o "EVITAR [actividad]" → restricciones_especificas
+   - Si dice "USO DE [EPP]" o "CONTROL [médico]" → recomendaciones
+   - Si NO hay restricciones explícitas de actividad → dejar campo vacío (null)
+
+7. VALIDACIÓN Y ALERTAS:
    Genera alertas cuando detectes:
    a) INCONSISTENCIAS DIAGNÓSTICAS: Diagnóstico sin soporte en exámenes
    b) DATOS FALTANTES CRÍTICOS: Diagnóstico sin código CIE-10, aptitud no definida
    c) VALORES CRÍTICOS: PA ≥180/110, Glicemia ≥200, IMC <16 o >40
    d) FORMATO INCORRECTO: Código CIE-10 erróneo, fechas no ISO
 
-7. DATOS DEL EMPLEADO - REGLAS ANTI-FALSOS POSITIVOS:
+8. DATOS DEL EMPLEADO - REGLAS ANTI-FALSOS POSITIVOS:
 
    a) TIPO DE DOCUMENTO:
       ⚠️ REGLA CRÍTICA ANTI-FALSOS POSITIVOS:
@@ -599,12 +629,12 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
       - Sexo: Solo M, F, O (no "masculino", "femenino" - convertir a letra)
       - Documento: Extraer el número completo sin puntos ni espacios
 
-8. DATOS FALTANTES:
+9. DATOS FALTANTES:
    - Si un campo no está en la HC, usa null
    - NO inventes valores médicos
    - Si algo es ambiguo, extráelo y marca confianza baja + alerta
 
-9. NIVEL DE CONFIANZA:
+10. NIVEL DE CONFIANZA:
    - 1.0: Dato explícito y claro
    - 0.9: Dato explícito pero formato no estándar
    - 0.7: Dato con jerga médica ambigua
