@@ -143,9 +143,9 @@ class Diagnostico(BaseModel):
         pattern=r"^[A-Z]\d{2}\.\d$"
     )
     descripcion: str = Field(..., description="Descripción del diagnóstico")
-    tipo: Literal["principal", "secundario", "hallazgo"] = Field(
-        ...,
-        description="Tipo de diagnóstico"
+    tipo: Optional[Literal["principal", "secundario", "hallazgo"]] = Field(
+        None,
+        description="Tipo de diagnóstico (solo cuando está explícito en el documento)"
     )
     relacionado_trabajo: bool = Field(
         default=False,
@@ -285,14 +285,6 @@ class Recomendacion(BaseModel):
     requiere_seguimiento: bool = Field(
         default=False,
         description="Indica si requiere seguimiento médico"
-    )
-    fecha_seguimiento: Optional[date] = Field(
-        None,
-        description="Fecha planeada para seguimiento"
-    )
-    prioridad: Literal["alta", "media", "baja"] = Field(
-        default="media",
-        description="Prioridad de la recomendación"
     )
 
     @field_validator('requiere_seguimiento', mode='before')
@@ -552,10 +544,6 @@ class HistoriaClinicaEstructurada(BaseModel):
     @model_validator(mode='after')
     def validar_consistencia(self) -> 'HistoriaClinicaEstructurada':
         """Validaciones de consistencia entre campos."""
-
-        # Si hay restricciones, la aptitud debe indicarlo
-        if self.restricciones_especificas and self.aptitud_laboral == "apto":
-            self.aptitud_laboral = "apto_con_restricciones"
 
         # Si genera reincorporación, debe haber causa
         if self.genera_reincorporacion and not self.causa_reincorporacion:

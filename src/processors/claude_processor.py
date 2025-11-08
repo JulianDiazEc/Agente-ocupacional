@@ -22,6 +22,205 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+# Lista de términos que NO son diagnósticos (nombres de exámenes/procedimientos)
+INVALID_DIAGNOSIS_TERMS = [
+    'audiometr', 'rayos x', 'rayos-x', 'rx ', 'rx.', 'laboratorio',
+    'electrocardiograma', 'ecg', 'ekg', 'examen', 'evaluación',
+    'evaluacion', 'control', 'toma de', 'prueba', 'espirometr',
+    'optometr', 'visiometr', 'hemograma', 'glicemia', 'colesterol',
+    'creatinina', 'parcial de orina', 'coprológico', 'coprologico',
+    'ecografía', 'ecografia', 'resonancia', 'tomografía', 'tomografia',
+    'radiografía', 'radiografia', 'laboratorios', 'paraclínicos',
+    'paraclinicos', 'análisis', 'analisis'
+]
+
+
+def filter_invalid_diagnoses(diagnosticos: list[dict]) -> list[dict]:
+    """
+    Filtra diagnósticos que en realidad son nombres de exámenes o procedimientos.
+
+    Args:
+        diagnosticos: Lista de diagnósticos extraídos
+
+    Returns:
+        list[dict]: Diagnósticos válidos (filtrados)
+    """
+    if not diagnosticos:
+        return []
+
+    valid_diagnosticos = []
+
+    for diag in diagnosticos:
+        descripcion = diag.get('descripcion', '')
+        if not descripcion:
+            continue
+
+        descripcion_lower = descripcion.lower().strip()
+
+        # Verificar si contiene algún término inválido
+        is_invalid = any(
+            term in descripcion_lower
+            for term in INVALID_DIAGNOSIS_TERMS
+        )
+
+        if not is_invalid:
+            valid_diagnosticos.append(diag)
+        else:
+            logger.debug(
+                f"Diagnóstico filtrado (nombre de examen): '{descripcion}'"
+            )
+
+    logger.debug(
+        f"Filtrado de diagnósticos: {len(diagnosticos)} → {len(valid_diagnosticos)}"
+    )
+
+    return valid_diagnosticos
+
+
+# Lista de patrones genéricos a filtrar (normalizados sin tildes ni mayúsculas)
+GENERIC_RECOMMENDATION_PATTERNS = [
+    'pausas activas', 'pausas laborales', 'pausas de descanso',
+    'uso de epp', 'uso de elementos de proteccion', 'hacer uso de epp',
+    'uso de equipo de proteccion',
+    'mantener habitos saludables', 'estilo de vida saludable',
+    'realizar ejercicio', 'actividad fisica regular', 'ejercicio regular',
+    'alimentacion sana', 'alimentacion saludable', 'dieta balanceada',
+    'hidratacion', 'tomar agua', 'consumo de agua',
+    'higiene postural', 'buena postura', 'adoptar buena postura',
+    'adoptar postura', 'corregir postura',
+    'seguridad vial', 'apto para conduccion', 'conduccion segura',
+    'llevar estilo de vida', 'mantener vida saludable'
+]
+
+
+def normalize_text_for_comparison(text: str) -> str:
+    """
+    Normaliza texto para comparación: lowercase, sin tildes, sin símbolos.
+
+    Args:
+        text: Texto a normalizar
+
+    Returns:
+        str: Texto normalizado
+    """
+    import unicodedata
+    text = text.lower().strip()
+    # Remover tildes
+    text = unicodedata.normalize('NFD', text)
+    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    return text
+
+
+def filter_generic_recommendations(recomendaciones: list[dict]) -> list[dict]:
+    """
+    Filtra recomendaciones genéricas que no aportan valor clínico específico.
+
+    Args:
+        recomendaciones: Lista de recomendaciones extraídas
+
+    Returns:
+        list[dict]: Recomendaciones específicas (filtradas)
+    """
+    if not recomendaciones:
+        return []
+
+    filtered = []
+
+    for rec in recomendaciones:
+        descripcion = rec.get('descripcion', '')
+        if not descripcion:
+            continue
+
+        desc_normalized = normalize_text_for_comparison(descripcion)
+
+        # Verificar si contiene algún patrón genérico
+        is_generic = any(
+            pattern in desc_normalized
+            for pattern in GENERIC_RECOMMENDATION_PATTERNS
+        )
+
+        if not is_generic:
+            filtered.append(rec)
+        else:
+            logger.debug(f"Recomendación genérica filtrada: '{descripcion}'")
+
+    logger.debug(
+        f"Filtrado de recomendaciones: {len(recomendaciones)} → {len(filtered)}"
+    )
+
+    return filtered
+
+
+def reclassify_epp_as_recommendations(historia_dict: dict) -> dict:
+    """
+    Limpia campo restricciones_especificas si solo contiene uso de EPP.
+
+    Restricciones deben ser LIMITACIONES de actividad, no uso de EPP.
+    El uso de EPP debe ir en recomendaciones.
+
+    Args:
+        historia_dict: Diccionario con la historia clínica
+
+    Returns:
+        dict: Historia con restricciones_especificas corregido
+    """
+    import re
+
+    restricciones = historia_dict.get('restricciones_especificas', '')
+
+    if not restricciones:
+        return historia_dict
+
+    # Patrones que indican EPP (no son restricciones reales)
+    epp_patterns = [
+        r'uso de\s+(?:lentes|gafas|anteojos)',
+        r'uso de\s+protector(?:es)?\s+auditivo',
+        r'uso de\s+(?:elementos|equipos)\s+de\s+protecci[oó]n',
+        r'uso de\s+epp',
+        r'uso de\s+guantes',
+        r'uso de\s+casco',
+        r'uso de\s+mascarilla',
+        r'uso de\s+protector\s+solar',
+        r'uso\s+(?:permanente|ocasional)\s+de'
+    ]
+
+    restricciones_lower = restricciones.lower()
+
+    # Verificar si hay EPP
+    has_epp = any(re.search(pattern, restricciones_lower) for pattern in epp_patterns)
+
+    # Verificar si hay restricciones REALES (limitaciones de actividad)
+    restricciones_reales_patterns = [
+        r'no\s+levantar',
+        r'no\s+cargar',
+        r'no\s+trabajar\s+en\s+altura',
+        r'evitar\s+exposici[oó]n\s+a',
+        r'no\s+conducir',
+        r'no\s+trabajar\s+en\s+turno',
+        r'no\s+realizar\s+movimientos',
+        r'no\s+permanecer\s+de\s+pie',
+        r'limitaci[oó]n\s+para',
+        r'restricci[oó]n\s+para',
+        r'evitar\s+movimientos',
+        r'evitar\s+actividades'
+    ]
+
+    has_real_restrictions = any(
+        re.search(pattern, restricciones_lower)
+        for pattern in restricciones_reales_patterns
+    )
+
+    # Si solo hay EPP y NO hay restricciones reales, limpiar el campo
+    if has_epp and not has_real_restrictions:
+        logger.debug(
+            f"restricciones_especificas contenía solo EPP (no restricciones reales), "
+            f"limpiando campo. Valor original: '{restricciones[:100]}...'"
+        )
+        historia_dict['restricciones_especificas'] = None
+
+    return historia_dict
+
+
 class ClaudeProcessor:
     """
     Procesador de historias clínicas usando Claude API.
@@ -158,6 +357,21 @@ class ClaudeProcessor:
 
             # Parsear JSON
             historia_dict = self._parse_claude_response(response_text)
+
+            # Postprocesamiento: Filtrar diagnósticos inválidos (nombres de exámenes)
+            if 'diagnosticos' in historia_dict and historia_dict['diagnosticos']:
+                historia_dict['diagnosticos'] = filter_invalid_diagnoses(
+                    historia_dict['diagnosticos']
+                )
+
+            # Postprocesamiento: Filtrar recomendaciones genéricas
+            if 'recomendaciones' in historia_dict and historia_dict['recomendaciones']:
+                historia_dict['recomendaciones'] = filter_generic_recommendations(
+                    historia_dict['recomendaciones']
+                )
+
+            # Postprocesamiento: Reclasificar EPP mal ubicado en restricciones
+            historia_dict = reclassify_epp_as_recommendations(historia_dict)
 
             # Agregar metadata
             historia_dict["archivo_origen"] = archivo_origen
