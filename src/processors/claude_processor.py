@@ -16,6 +16,8 @@ from src.config.schemas import HistoriaClinicaEstructurada
 from src.config.settings import get_settings
 from src.processors.prompts import get_extraction_prompt, get_extraction_prompt_cached
 from src.processors.validators import validate_historia_completa
+from src.processors.recommendation_filters import filter_recommendations
+from src.processors.alert_filters import filter_alerts
 from src.utils.helpers import safe_json_loads
 from src.utils.logger import get_logger
 
@@ -97,64 +99,6 @@ def filter_invalid_diagnoses(diagnosticos: list[dict]) -> list[dict]:
     return valid_diagnosticos
 
 
-# Grupos de tokens genéricos para detección de recomendaciones no específicas
-GENERIC_TOKEN_GROUPS = [
-    # EPP genérico
-    (['uso', 'epp'], []),
-    (['elementos', 'proteccion', 'personal'], []),
-    (['uso', 'adecuado', 'elementos'], []),
-
-    # Estilo de vida
-    (['habitos', 'saludable'], []),
-    (['estilo', 'vida', 'saludable'], []),
-    (['continuar', 'habitos'], []),
-
-    # Ejercicio genérico
-    (['ejercicio', 'fisico'], []),
-    (['150', 'minutos'], ['semana']),
-    (['actividad', 'fisica', 'regular'], []),
-
-    # Fotoprotección genérica
-    (['fotoproteccion'], []),
-    (['proteccion', 'solar'], []),
-    (['uso', 'regular', 'fotoproteccion'], []),
-
-    # Seguridad vial genérica
-    (['seguridad', 'vial'], []),
-    (['apto', 'conduccion'], []),
-
-    # Pausas
-    (['pausas', 'activas'], []),
-    (['pausas', 'laborales'], []),
-
-    # Postura
-    (['buena', 'postura'], []),
-    (['higiene', 'postural'], []),
-
-    # Hidratación
-    (['hidratacion'], []),
-    (['consumo', 'agua'], []),
-]
-
-# Nombres de exámenes médicos (no deben aparecer como recomendaciones)
-EXAM_NAME_TERMS = [
-    'espirometria', 'audiometria', 'optometria', 'visiometria',
-    'laboratorio', 'laboratorios', 'radiografia', 'ecografia',
-    'electrocardiograma', 'ecg', 'ekg', 'rayos x', 'rx',
-    'tomografia', 'resonancia', 'parcial de orina', 'hemograma',
-    'glicemia', 'colesterol', 'trigliceridos', 'cuadro hematico',
-    'coprológico', 'coprologico', 'vdrl', 'vih', 'hepatitis'
-]
-
-# Términos que indican órdenes genéricas de exámenes (no recomendaciones específicas)
-GENERIC_ORDER_TERMS = [
-    'control periodico', 'control ocupacional', 'control anual',
-    'examen complementario', 'valoracion', 'evaluacion',
-    'realizar', 'solicitar', 'ordenar', 'programar',
-    'educacion en', 'capacitacion en', 'seguimiento por'
-]
-
-
 def normalize_text_for_comparison(text: str) -> str:
     """
     Normaliza texto para comparación: lowercase, sin tildes, sin dobles espacios.
@@ -173,100 +117,6 @@ def normalize_text_for_comparison(text: str) -> str:
     # Remover dobles espacios
     text = ' '.join(text.split())
     return text
-
-
-def contains_token_group(text_normalized: str, required_tokens: list, optional_tokens: list) -> bool:
-    """
-    Verifica si el texto contiene un grupo de tokens requeridos.
-
-    Args:
-        text_normalized: Texto normalizado
-        required_tokens: Tokens que deben estar presentes
-        optional_tokens: Tokens opcionales (mejoran coincidencia)
-
-    Returns:
-        bool: True si contiene todos los tokens requeridos
-    """
-    # Todos los tokens requeridos deben estar presentes
-    has_all_required = all(token in text_normalized for token in required_tokens)
-
-    if not has_all_required:
-        return False
-
-    # Si hay tokens opcionales, al menos uno debe estar presente (mejora precisión)
-    if optional_tokens:
-        has_optional = any(token in text_normalized for token in optional_tokens)
-        return has_optional
-
-    return True
-
-
-def filter_generic_recommendations(recomendaciones: list[dict]) -> list[dict]:
-    """
-    Filtra recomendaciones genéricas usando detección por grupos de tokens.
-
-    Cambiado de matching literal a detección por combinaciones de términos
-    para capturar variantes como:
-    - "Uso adecuado de los elementos de protección personal"
-    - "Ejercicio físico regularmente al menos 150 minutos"
-    - "Continuar hábitos y estilos de vida saludable"
-
-    Args:
-        recomendaciones: Lista de recomendaciones extraídas
-
-    Returns:
-        list[dict]: Recomendaciones específicas (filtradas)
-    """
-    if not recomendaciones:
-        return []
-
-    filtered = []
-
-    for rec in recomendaciones:
-        descripcion = rec.get('descripcion', '')
-        if not descripcion:
-            continue
-
-        desc_normalized = normalize_text_for_comparison(descripcion)
-        palabra_count = len(descripcion.split())
-        is_generic = False
-        razon_filtrado = ""
-
-        # Regla 1: Verificar si contiene algún grupo de tokens genéricos
-        for required_tokens, optional_tokens in GENERIC_TOKEN_GROUPS:
-            if contains_token_group(desc_normalized, required_tokens, optional_tokens):
-                is_generic = True
-                razon_filtrado = f"tokens genéricos: {required_tokens}"
-                break
-
-        # Regla 2: Filtrar nombres de exámenes sueltos (≤3 palabras)
-        if not is_generic and palabra_count <= 3:
-            for exam_term in EXAM_NAME_TERMS:
-                if exam_term in desc_normalized:
-                    is_generic = True
-                    razon_filtrado = f"nombre de examen suelto: '{exam_term}'"
-                    break
-
-        # Regla 3: Filtrar órdenes genéricas de exámenes
-        if not is_generic:
-            for order_term in GENERIC_ORDER_TERMS:
-                if order_term in desc_normalized:
-                    is_generic = True
-                    razon_filtrado = f"orden genérica: '{order_term}'"
-                    break
-
-        if is_generic:
-            logger.debug(
-                f"Recomendación genérica filtrada ({razon_filtrado}): '{descripcion}'"
-            )
-        else:
-            filtered.append(rec)
-
-    logger.debug(
-        f"Filtrado de recomendaciones: {len(recomendaciones)} → {len(filtered)}"
-    )
-
-    return filtered
 
 
 def deduplicate_recommendations(recomendaciones: list[dict]) -> list[dict]:
@@ -785,10 +635,11 @@ class ClaudeProcessor:
                     historia_dict['diagnosticos']
                 )
 
-            # Postprocesamiento: Filtrar recomendaciones genéricas
+            # Postprocesamiento: Filtrar recomendaciones genéricas (NUEVO filtro centralizado)
             if 'recomendaciones' in historia_dict and historia_dict['recomendaciones']:
-                historia_dict['recomendaciones'] = filter_generic_recommendations(
-                    historia_dict['recomendaciones']
+                historia_dict['recomendaciones'] = filter_recommendations(
+                    historia_dict['recomendaciones'],
+                    historia_dict
                 )
                 # Deduplicar después de filtrar genéricas
                 historia_dict['recomendaciones'] = deduplicate_recommendations(
@@ -828,8 +679,8 @@ class ClaudeProcessor:
             # Agregar alertas de validación
             historia.alertas_validacion.extend(alertas_adicionales)
 
-            # Filtrar alertas innecesarias/ruido
-            historia.alertas_validacion = self._filter_unnecessary_alerts(
+            # Filtrar alertas innecesarias/ruido (NUEVO filtro centralizado)
+            historia.alertas_validacion = filter_alerts(
                 historia.alertas_validacion,
                 historia
             )
@@ -888,119 +739,6 @@ class ClaudeProcessor:
             "La respuesta de Claude no contiene JSON válido. "
             "Verifique los logs para más detalles."
         )
-
-    def _filter_unnecessary_alerts(
-        self,
-        alertas: list,
-        historia: HistoriaClinicaEstructurada
-    ) -> list:
-        """
-        Filtra alertas innecesarias o de ruido administrativo.
-
-        Alertas eliminadas:
-        - Falta de EPS/ARL (dato administrativo, no clínico)
-        - En consolidados: alertas de tipo_emo/aptitud faltante si ya están poblados
-        - En consolidados con exámenes específicos: alertas de campos que solo aplican a HC completa
-
-        Args:
-            alertas: Lista de alertas
-            historia: Historia clínica procesada
-
-        Returns:
-            list: Alertas filtradas
-        """
-        if not alertas:
-            return []
-
-        # Detectar si es consolidado
-        historia_dict = historia.model_dump()
-        archivos_consolidados = historia_dict.get('archivos_origen_consolidados', [])
-        es_consolidado = bool(archivos_consolidados)
-
-        # Si es consolidado, verificar si hay exámenes específicos en las fuentes
-        tiene_examenes_especificos = False
-        if es_consolidado:
-            # Los archivos origen consolidados están en el JSON como metadata
-            # pero no están disponibles aquí directamente
-            # Asumiremos que si tipo_documento_fuente == 'hc_completa' pero
-            # hay múltiples archivos, puede haber exámenes específicos consolidados
-            tiene_examenes_especificos = len(archivos_consolidados) > 1
-
-        filtered = []
-
-        # Whitelist de alertas administrativas (SIEMPRE filtrar)
-        ADMINISTRATIVE_KEYWORDS = [
-            'eps', 'arl', 'edad', 'sexo', 'cargo', 'area', 'empresa',
-            'antiguedad', 'afiliacion'
-        ]
-
-        for alerta in alertas:
-            should_filter = False
-            razon_filtrado = ""
-
-            # Regla 1: Filtrar alertas administrativas (whitelist)
-            if alerta.tipo == "dato_faltante":
-                desc_lower = alerta.descripcion.lower()
-                campo_lower = (alerta.campo_afectado or "").lower()
-
-                # Verificar si contiene alguna palabra administrativa
-                for keyword in ADMINISTRATIVE_KEYWORDS:
-                    if keyword in desc_lower or keyword in campo_lower:
-                        should_filter = True
-                        razon_filtrado = f"administrativa ({keyword})"
-                        break
-
-            # Regla 2: En consolidados, filtrar alertas de campos que YA están poblados
-            if not should_filter and es_consolidado and alerta.tipo == "dato_faltante":
-                campo = alerta.campo_afectado
-
-                # Mapeo de campos a verificar en el consolidado
-                campos_verificar = {
-                    'tipo_emo': historia.tipo_emo,
-                    'aptitud_laboral': historia.aptitud_laboral,
-                    'fecha_emo': historia.fecha_emo,
-                    'diagnosticos': len(historia.diagnosticos) > 0
-                }
-
-                if campo in campos_verificar and campos_verificar[campo]:
-                    should_filter = True
-                    razon_filtrado = f"campo poblado en consolidado ({campo})"
-
-            # Regla 3: En exámenes específicos, filtrar alerta de diagnóstico principal faltante
-            if not should_filter:
-                if (historia.tipo_documento_fuente == "examen_especifico" and
-                    "diagnóstico principal" in alerta.descripcion.lower()):
-                    should_filter = True
-                    razon_filtrado = "diagnóstico principal en examen específico"
-
-            # Regla 4: Evitar alertas duplicadas en consolidados
-            if not should_filter and es_consolidado:
-                desc_normalizada = normalize_text_for_comparison(alerta.descripcion)
-                ya_existe = any(
-                    normalize_text_for_comparison(a.descripcion) == desc_normalizada
-                    for a in filtered
-                )
-                if ya_existe:
-                    should_filter = True
-                    razon_filtrado = "duplicada"
-
-            # Regla 5: SIEMPRE conservar inconsistencias clínicas
-            if alerta.tipo in ["inconsistencia_diagnostica", "fecha_invalida"]:
-                should_filter = False
-                razon_filtrado = ""
-
-            # Aplicar filtrado
-            if should_filter:
-                logger.debug(
-                    f"Alerta filtrada ({razon_filtrado}): {alerta.descripcion[:60]}..."
-                )
-            else:
-                filtered.append(alerta)
-
-        if len(filtered) < len(alertas):
-            logger.debug(f"Alertas filtradas: {len(alertas)} → {len(filtered)}")
-
-        return filtered
 
     def _calculate_confidence(self, historia: HistoriaClinicaEstructurada) -> float:
         """
