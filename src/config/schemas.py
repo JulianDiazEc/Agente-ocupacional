@@ -404,7 +404,8 @@ class HistoriaClinicaEstructurada(BaseModel):
     tipo_documento_fuente: Literal[
         "hc_completa",          # Historia clínica ocupacional completa con anamnesis
         "cmo",                  # Certificado médico ocupacional con aptitud
-        "examen_especifico"     # Examen aislado: RX, labs, optometría, espirometría, etc.
+        "examen_especifico",    # Examen aislado: RX, labs, optometría, espirometría, etc.
+        "consolidado"           # Consolidación de múltiples documentos de una misma persona
     ] = Field(
         default="hc_completa",
         description="Tipo de documento procesado - determina qué campos son obligatorios"
