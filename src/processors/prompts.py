@@ -200,30 +200,45 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
 
    ⚠️ REGLA CRÍTICA ANTI-FALSOS POSITIVOS EN FORMULARIOS:
 
+   IMPORTANTE: Los formularios médicos tienen checkboxes pre-impresos con TODAS las opciones.
+   Que un campo APAREZCA en el documento NO significa que esté SELECCIONADO.
+
    Al interpretar checkboxes, casillas de verificación o campos de selección:
 
-   ✅ EXTRAER SOLO SI:
-   - El checkbox tiene una marca CLARA y CONTUNDENTE (X, ✓, checkbox totalmente lleno)
-   - Y/O el texto narrativo CONFIRMA explícitamente ese campo
-   - Ejemplo: Si marca "reasignación de tareas", debe haber texto que mencione
-     "se recomienda reasignar", "cambio de tareas", etc.
+   🚫 NUNCA extraer un checkbox SOLO porque aparece el texto del campo.
+      Ejemplo: Ver "REASIGNACION DE TAREAS" en el PDF NO significa que esté marcado.
 
-   ❌ NO EXTRAER (ignorar) SI:
-   - La marca es LEVE, DIFUSA o AMBIGUA (manchita, marca suave, ruido visual)
-   - El checkbox está solo levemente sombreado sin marca contundente
-   - NO hay confirmación en texto narrativo del documento
-   - Es posible que sea una imperfección del documento (mancha de tinta, doblez, escáner)
+   ✅ EXTRAER SOLO SI CUMPLE AMBAS:
+   1. El checkbox tiene marca CONTUNDENTE (X grande, ✓ clara, checkbox negro/lleno completo)
+      Y
+   2. Hay CONFIRMACIÓN TEXTUAL en secciones narrativas del documento
+      (recomendaciones, conclusiones, observaciones, notas del médico)
 
-   🔍 REGLA DE VALIDACIÓN CRUZADA:
-   - Si marcas un checkbox/restricción/recomendación EN FORMULARIO:
-     → Busca EVIDENCIA TEXTUAL en otras secciones del documento
-     → Si NO hay evidencia textual que lo soporte → NO extraer
+   ❌ NO EXTRAER (ignorar completamente) SI:
+   - Solo ves el NOMBRE del campo sin marca obvia (ej: "REASIGNACION DE TAREAS" solo)
+   - La marca es símbolo pequeño, punto, manchita, sombreado leve
+   - NO hay texto narrativo que mencione esa restricción/recomendación
+   - Es un checkbox pre-impreso del formulario sin seleccionar
 
-   Ejemplos:
-   - ✅ Checkbox "altura" marcado con X + texto dice "restricción para trabajo en altura"
-   - ❌ Checkbox "reasignación" con manchita leve + texto NO menciona reasignación
-   - ✅ Campo "restricciones" marcado + sección diagnósticos menciona lumbalgia
-   - ❌ Campo "modificación tareas" levemente marcado + resto del examen normal
+   🔍 PRUEBA DE VALIDACIÓN CRUZADA (OBLIGATORIA):
+   Antes de extraer cualquier restricción/recomendación de checkbox:
+
+   PASO 1: Busca en secciones narrativas (conclusiones, observaciones, notas médicas)
+   PASO 2: Si NO encuentras mención textual → DESCARTA el checkbox
+   PASO 3: Solo extrae si hay DOBLE CONFIRMACIÓN: checkbox marcado + texto narrativo
+
+   Ejemplos CORRECTOS:
+   - ✅ Checkbox "altura" con X grande + texto dice "Restricción trabajo en alturas por vértigo"
+   - ✅ Campo "peso" marcado + observaciones dicen "Evitar cargas mayores a 10kg por lumbalgia"
+
+   Ejemplos INCORRECTOS (NO extraer):
+   - ❌ "REASIGNACION DE TAREAS" aparece solo, sin X clara, sin texto que lo mencione
+   - ❌ Checkbox "modificación tareas" con punto/simbolito, resto del examen normal
+   - ❌ Campo pre-impreso "restricciones especiales" sin marca + sin texto narrativo
+   - ❌ Lista de checkboxes del formulario que están en blanco o con marcas ambiguas
+
+   REGLA DE ORO: Si tienes DUDA sobre si un checkbox está marcado → NO extraer.
+                 Mejor omitir una restricción dudosa que crear un falso positivo.
 
 6. VALIDACIÓN Y ALERTAS:
 
