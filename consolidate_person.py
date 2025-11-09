@@ -447,22 +447,37 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
         # Setear tipo de documento como consolidado
         consolidada['tipo_documento_fuente'] = 'consolidado'
 
+        # PRE-PROCESAMIENTO del consolidado
+        # Limpiar y validar datos ANTES de Pydantic
+        from src.processors.claude_processor import validate_signos_vitales, normalize_aptitud_laboral
+        alertas_preprocesamiento = []
+
+        # 1. Validar y limpiar signos vitales
+        consolidada = validate_signos_vitales(consolidada, alertas_preprocesamiento)
+
+        # 2. Normalizar aptitud_laboral
+        consolidada = normalize_aptitud_laboral(consolidada, alertas_preprocesamiento)
+
         # Convertir a objeto Pydantic para validar
         historia_obj = HistoriaClinicaEstructurada.model_validate(consolidada)
 
-        # Ejecutar validaciones de completitud
+        # VALIDACIONES CLÍNICAS (solo en consolidado)
+        # 1. Validaciones de completitud
         alertas_validacion = validate_historia_completa(historia_obj)
 
-        # Ejecutar validación cruzada diagnóstico↔examen (SOLO en consolidado)
+        # 2. Validación cruzada diagnóstico↔examen
         from src.processors.validators import validate_diagnosis_exam_consistency, validate_examenes_criticos_sin_reflejo
         alertas_cruzadas = validate_diagnosis_exam_consistency(historia_obj)
         alertas_validacion.extend(alertas_cruzadas)
 
-        # Validar que exámenes críticos/alterados tengan reflejo (SOLO en consolidado)
+        # 3. Validar que exámenes críticos/alterados tengan reflejo
         alertas_hallazgos = validate_examenes_criticos_sin_reflejo(historia_obj)
         alertas_validacion.extend(alertas_hallazgos)
 
-        # Filtrar con lista blanca clínica
+        # 4. Agregar alertas de pre-procesamiento
+        alertas_validacion.extend(alertas_preprocesamiento)
+
+        # 5. Filtrar con lista blanca clínica
         alertas_filtradas = filter_alerts(alertas_validacion, historia_obj)
 
         # Actualizar alertas en el dict

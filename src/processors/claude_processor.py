@@ -943,24 +943,26 @@ class ClaudeProcessor:
             # Agregar metadata
             historia_dict["archivo_origen"] = archivo_origen
 
-            # Pre-procesamiento: Validaciones ANTES de Pydantic
-            alertas_preprocesamiento = []
+            # Pre-procesamiento: Limpieza de datos ANTES de Pydantic
+            # IMPORTANTE: Solo limpia datos, NO genera alertas en JSONs individuales
+            alertas_preprocesamiento = []  # Se usa internamente, no se guarda
 
-            # 1. Validar signos vitales con rangos esperados
+            # 1. Validar y limpiar signos vitales con rangos esperados
+            #    Si valor fuera de rango → setea None (no rompe pipeline)
             historia_dict = validate_signos_vitales(historia_dict, alertas_preprocesamiento)
 
             # 2. Normalizar aptitud_laboral
+            #    "aplazado" → "pendiente", valores no estándar → "pendiente"
             historia_dict = normalize_aptitud_laboral(historia_dict, alertas_preprocesamiento)
 
             # Validar contra schema Pydantic
             historia = HistoriaClinicaEstructurada.model_validate(historia_dict)
 
-            # Agregar alertas de pre-procesamiento (vitales, aptitud)
-            historia.alertas_validacion.extend(alertas_preprocesamiento)
-
-            # IMPORTANTE: NO se ejecutan validaciones clínicas aquí
-            # Las validaciones completas se ejecutan SOLO en consolidate_person.py
-            # sobre el consolidado final con toda la información integrada de la persona
+            # ARQUITECTURA: Documentos individuales NO tienen alertas
+            # - Los JSONs individuales solo extraen y limpian datos
+            # - Las alertas se generan SOLO en consolidate_person.py sobre el consolidado final
+            # - Resultado: alertas_validacion = [] en todos los JSONs individuales
+            # (alertas_preprocesamiento se descarta, no se guarda)
 
             # Calcular confianza si no fue calculada
             if historia.confianza_extraccion == 0.0:
