@@ -74,5 +74,8 @@ dmypy.json
 *.csv
 !config/schemas/*.csv
 
+# Frontend
+/frontend/node_modules
+
 # OS
 Thumbs.db
