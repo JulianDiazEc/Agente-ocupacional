@@ -94,6 +94,72 @@ TIPOS DE EMO QUE PUEDES ENCONTRAR:
 
 REGLAS CRÍTICAS DE EXTRACCIÓN:
 
+0. INTERPRETACIÓN DE TABLAS Y CHECKBOXES (CRÍTICO):
+
+   ⚠️ PROBLEMA COMÚN: PDFs con tablas se convierten a texto lineal
+
+   Cuando veas un patrón como:
+   ```
+   1. SATISFACTORIO
+   2. NO SATISFACTORIO
+   3. SATISFACTORIO CON RESTRICCIONES
+   X
+   ```
+
+   Este patrón indica una tabla de 2 columnas donde:
+   - Columna 1: Opciones numeradas
+   - Columna 2: Checkboxes/marcas
+
+   🚫 ERROR COMÚN:
+   ❌ "X aparece al final → es la opción 3" (INCORRECTO)
+
+   ✅ INTERPRETACIÓN CORRECTA:
+   La "X" marca la PRIMERA opción que aparece arriba de ella, NO la última.
+   Esto sucede porque la tabla se lee por columnas: primero todas las opciones,
+   luego todas las marcas.
+
+   REGLAS DE INTERPRETACIÓN:
+   1. Si ves opciones seguidas de una marca aislada (X, ☑, √):
+      → La marca corresponde a la PRIMERA opción
+
+   2. Si ves "[TABLA]" o estructura de tabla explícita:
+      → Usar filas y columnas para mapear correctamente
+      → Ejemplo: "Fila 1: | SATISFACTORIO | X |" → opción 1 marcada
+
+   3. Si hay contexto de "APTITUD LABORAL" con 3 opciones + marca:
+      → SATISFACTORIO (1) / NO SATISFACTORIO (2) / CON RESTRICCIONES (3)
+      → Una sola "X" después → probablemente marca opción 1
+
+   4. Si hay MÚLTIPLES marcas para opciones diferentes:
+      → Mapear cada marca a la opción más cercana ARRIBA
+
+   ✅ EJEMPLOS CORRECTOS:
+
+   Caso A (lineal):
+   ```
+   1. Opción A
+   2. Opción B
+   3. Opción C
+   X
+   ```
+   → Interpretación: Opción A marcada (X está en columna 2, fila 1)
+
+   Caso B (tabla explícita):
+   ```
+   [TABLA]
+   Fila 1: | Opción A | X |
+   Fila 2: | Opción B |   |
+   [/TABLA]
+   ```
+   → Interpretación: Opción A marcada (obvio de la estructura)
+
+   Caso C (múltiples marcas):
+   ```
+   APTITUD: 1. SATISFACTORIO  2. NO SATISFACTORIO  3. CON RESTRICCIONES
+            X
+   ```
+   → Interpretación: SATISFACTORIO marcado (X en fila de abajo, columna 1)
+
 1. DIAGNÓSTICOS (CIE-10):
    - Formato EXACTO: Letra + 2 dígitos + punto + 1 dígito (ej: M54.5, J30.1, H52.0)
    - Extrae TODOS los diagnósticos mencionados, sin excepción
@@ -527,6 +593,72 @@ TIPOS DE EMO QUE PUEDES ENCONTRAR:
 - Retiro/Egreso: Al finalizar vínculo laboral
 
 REGLAS CRÍTICAS DE EXTRACCIÓN:
+
+0. INTERPRETACIÓN DE TABLAS Y CHECKBOXES (CRÍTICO):
+
+   ⚠️ PROBLEMA COMÚN: PDFs con tablas se convierten a texto lineal
+
+   Cuando veas un patrón como:
+   ```
+   1. SATISFACTORIO
+   2. NO SATISFACTORIO
+   3. SATISFACTORIO CON RESTRICCIONES
+   X
+   ```
+
+   Este patrón indica una tabla de 2 columnas donde:
+   - Columna 1: Opciones numeradas
+   - Columna 2: Checkboxes/marcas
+
+   🚫 ERROR COMÚN:
+   ❌ "X aparece al final → es la opción 3" (INCORRECTO)
+
+   ✅ INTERPRETACIÓN CORRECTA:
+   La "X" marca la PRIMERA opción que aparece arriba de ella, NO la última.
+   Esto sucede porque la tabla se lee por columnas: primero todas las opciones,
+   luego todas las marcas.
+
+   REGLAS DE INTERPRETACIÓN:
+   1. Si ves opciones seguidas de una marca aislada (X, ☑, √):
+      → La marca corresponde a la PRIMERA opción
+
+   2. Si ves "[TABLA]" o estructura de tabla explícita:
+      → Usar filas y columnas para mapear correctamente
+      → Ejemplo: "Fila 1: | SATISFACTORIO | X |" → opción 1 marcada
+
+   3. Si hay contexto de "APTITUD LABORAL" con 3 opciones + marca:
+      → SATISFACTORIO (1) / NO SATISFACTORIO (2) / CON RESTRICCIONES (3)
+      → Una sola "X" después → probablemente marca opción 1
+
+   4. Si hay MÚLTIPLES marcas para opciones diferentes:
+      → Mapear cada marca a la opción más cercana ARRIBA
+
+   ✅ EJEMPLOS CORRECTOS:
+
+   Caso A (lineal):
+   ```
+   1. Opción A
+   2. Opción B
+   3. Opción C
+   X
+   ```
+   → Interpretación: Opción A marcada (X está en columna 2, fila 1)
+
+   Caso B (tabla explícita):
+   ```
+   [TABLA]
+   Fila 1: | Opción A | X |
+   Fila 2: | Opción B |   |
+   [/TABLA]
+   ```
+   → Interpretación: Opción A marcada (obvio de la estructura)
+
+   Caso C (múltiples marcas):
+   ```
+   APTITUD: 1. SATISFACTORIO  2. NO SATISFACTORIO  3. CON RESTRICCIONES
+            X
+   ```
+   → Interpretación: SATISFACTORIO marcado (X en fila de abajo, columna 1)
 
 1. DIAGNÓSTICOS (CIE-10):
    - Formato EXACTO: Letra + 2 dígitos + punto + 1 dígito (ej: M54.5, J30.1, H52.0)
