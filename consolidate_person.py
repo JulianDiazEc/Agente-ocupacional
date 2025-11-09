@@ -402,6 +402,11 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
         # Ejecutar validaciones de completitud
         alertas_validacion = validate_historia_completa(historia_obj)
 
+        # Ejecutar validación cruzada diagnóstico↔examen (SOLO en consolidado)
+        from src.processors.validators import validate_diagnosis_exam_consistency
+        alertas_cruzadas = validate_diagnosis_exam_consistency(historia_obj)
+        alertas_validacion.extend(alertas_cruzadas)
+
         # Filtrar con lista blanca clínica
         alertas_filtradas = filter_alerts(alertas_validacion, historia_obj)
 
