@@ -605,7 +605,7 @@ def validate_diagnosis_exam_consistency(historia: HistoriaClinicaEstructurada) -
     """
     Valida consistencia entre diagnósticos y exámenes paraclínicos objetivos.
 
-    SOLO para consolidados. Detecta inconsistencias en:
+    SOLO para HC completa y CMO (examen médico ocupacional). Detecta inconsistencias en:
     1. Diagnósticos visuales (H52.x) vs optometría
     2. Diagnósticos auditivos (H90.x, H91.x) vs audiometría
     3. Diagnósticos respiratorios (J44.x, J45.x, J68.x) vs espirometría
@@ -616,23 +616,23 @@ def validate_diagnosis_exam_consistency(historia: HistoriaClinicaEstructurada) -
     - Osteomusculares (dolor sin hallazgo objetivo es válido)
 
     Args:
-        historia: Historia clínica consolidada
+        historia: Historia clínica completa o CMO
 
     Returns:
         List[Alerta]: Alertas de inconsistencia (severidad baja)
     """
     alertas = []
 
-    # SOLO ejecutar en consolidados
-    if historia.tipo_documento_fuente != "consolidado":
+    # SOLO ejecutar en HC completa y CMO
+    if historia.tipo_documento_fuente not in ["hc_completa", "cmo"]:
         logger.debug(
             f"Validación cruzada diagnóstico↔examen omitida: "
-            f"tipo_documento_fuente = '{historia.tipo_documento_fuente}' (no es consolidado)"
+            f"tipo_documento_fuente = '{historia.tipo_documento_fuente}' (solo aplica a hc_completa y cmo)"
         )
         return alertas
 
     logger.info(
-        f"Ejecutando validación cruzada diagnóstico↔examen en consolidado. "
+        f"Ejecutando validación cruzada diagnóstico↔examen en {historia.tipo_documento_fuente}. "
         f"Diagnósticos: {len(historia.diagnosticos)}, Exámenes: {len(historia.examenes)}"
     )
 
@@ -725,7 +725,7 @@ def validate_historia_completa(historia: HistoriaClinicaEstructurada) -> List[Al
             )
         )
 
-    # Validar consistencia diagnóstico ↔ examen (SOLO consolidados)
+    # Validar consistencia diagnóstico ↔ examen (SOLO HC completa y CMO)
     # Cruza diagnósticos visuales/auditivos/respiratorios con sus exámenes objetivos
     alertas.extend(validate_diagnosis_exam_consistency(historia))
 

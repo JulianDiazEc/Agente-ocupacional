@@ -3,6 +3,7 @@
 Script de prueba para validación cruzada diagnóstico↔examen.
 
 Prueba con datos sintéticos para verificar que la lógica funciona.
+Valida SOLO en HC completa y CMO (NO en consolidado ni examen específico).
 """
 
 from datetime import date
@@ -24,7 +25,7 @@ print("-" * 80)
 
 historia_visual = HistoriaClinicaEstructurada(
     archivo_origen="test_visual.pdf",
-    tipo_documento_fuente="consolidado",  # ← IMPORTANTE
+    tipo_documento_fuente="hc_completa",  # ← Valida en HC completa
     datos_empleado=DatosEmpleado(nombre_completo="Test Visual"),
     diagnosticos=[
         Diagnostico(
@@ -57,7 +58,7 @@ print("-" * 80)
 
 historia_auditiva = HistoriaClinicaEstructurada(
     archivo_origen="test_auditivo.pdf",
-    tipo_documento_fuente="consolidado",
+    tipo_documento_fuente="hc_completa",
     datos_empleado=DatosEmpleado(nombre_completo="Test Auditivo"),
     diagnosticos=[
         Diagnostico(
@@ -89,7 +90,7 @@ print("-" * 80)
 
 historia_respiratoria = HistoriaClinicaEstructurada(
     archivo_origen="test_respiratorio.pdf",
-    tipo_documento_fuente="consolidado",
+    tipo_documento_fuente="hc_completa",
     datos_empleado=DatosEmpleado(nombre_completo="Test Respiratorio"),
     diagnosticos=[
         Diagnostico(
@@ -115,14 +116,14 @@ for alerta in alertas_respiratorias:
     print(f"  - Severidad: {alerta.severidad}")
     print(f"  - Descripción: {alerta.descripcion}")
 
-# Test 4: NO consolidado - No debe generar alertas
-print("\n4️⃣ Test Control: HC (no consolidado) - NO debe generar alertas")
+# Test 4: Examen específico - No debe generar alertas
+print("\n4️⃣ Test Control: Examen específico - NO debe generar alertas")
 print("-" * 80)
 
-historia_hc = HistoriaClinicaEstructurada(
-    archivo_origen="test_hc.pdf",
-    tipo_documento_fuente="hc_completa",  # ← NO es consolidado
-    datos_empleado=DatosEmpleado(nombre_completo="Test HC"),
+historia_examen_especifico = HistoriaClinicaEstructurada(
+    archivo_origen="test_examen.pdf",
+    tipo_documento_fuente="examen_especifico",  # ← NO valida cross-validation
+    datos_empleado=DatosEmpleado(nombre_completo="Test Examen"),
     diagnosticos=[
         Diagnostico(
             codigo_cie10="H52.1",
@@ -139,8 +140,8 @@ historia_hc = HistoriaClinicaEstructurada(
     ]
 )
 
-alertas_hc = validate_diagnosis_exam_consistency(historia_hc)
-print(f"Alertas generadas: {len(alertas_hc)} (debe ser 0)")
+alertas_examen = validate_diagnosis_exam_consistency(historia_examen_especifico)
+print(f"Alertas generadas: {len(alertas_examen)} (debe ser 0)")
 
 # Test 5: Sin examen - No debe generar alerta
 print("\n5️⃣ Test Control: Diagnóstico sin examen - NO debe generar alertas")
@@ -148,7 +149,7 @@ print("-" * 80)
 
 historia_sin_examen = HistoriaClinicaEstructurada(
     archivo_origen="test_sin_examen.pdf",
-    tipo_documento_fuente="consolidado",
+    tipo_documento_fuente="hc_completa",
     datos_empleado=DatosEmpleado(nombre_completo="Test Sin Examen"),
     diagnosticos=[
         Diagnostico(
@@ -170,7 +171,7 @@ print("=" * 80)
 print(f"1. Visual (miopía + optometría normal): {len(alertas_visual)} alertas (esperado: 1)")
 print(f"2. Auditivo (hipoacusia + audiometría normal): {len(alertas_auditivas)} alertas (esperado: 1)")
 print(f"3. Respiratorio (EPOC + espirometría normal): {len(alertas_respiratorias)} alertas (esperado: 1)")
-print(f"4. HC no consolidado: {len(alertas_hc)} alertas (esperado: 0)")
+print(f"4. Examen específico (NO debe validar): {len(alertas_examen)} alertas (esperado: 0)")
 print(f"5. Sin examen: {len(alertas_sin_examen)} alertas (esperado: 0)")
 
 total_esperado = 3
