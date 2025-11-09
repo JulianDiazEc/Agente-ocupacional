@@ -487,6 +487,108 @@ def clean_exam_findings(examenes: list[dict]) -> list[dict]:
     return examenes
 
 
+def relocate_misclassified_recommendations(historia_dict: dict) -> dict:
+    """
+    Reubica recomendaciones mal clasificadas a sus campos correctos.
+
+    Casos:
+    1. "Aplazado para..." → restricciones_especificas (y ajustar aptitud si aplica)
+    2. "Incluir en PVE/SVE de..." → programas_sve (y eliminar de recomendaciones)
+
+    Args:
+        historia_dict: Diccionario con la historia clínica
+
+    Returns:
+        dict: Historia con recomendaciones reubicadas
+    """
+    import re
+    from src.config.schemas import normalize_programa_sve
+
+    recomendaciones = historia_dict.get('recomendaciones', [])
+    if not recomendaciones:
+        return historia_dict
+
+    recomendaciones_validas = []
+    restricciones_adicionales = []
+    programas_sve_adicionales = set(historia_dict.get('programas_sve', []))
+
+    for rec in recomendaciones:
+        descripcion = rec.get('descripcion', '')
+        desc_lower = descripcion.lower().strip()
+
+        # CASO 1: "Aplazado para..." → restricciones_especificas
+        if re.search(r'\baplazad[oa]\s+(para|hasta|por)', desc_lower):
+            restricciones_adicionales.append(descripcion)
+            logger.info(f"Reubicando 'aplazado' de recomendaciones a restricciones: '{descripcion[:60]}...'")
+
+            # Si aptitud no está definida, setearla como no_apto_temporal
+            if not historia_dict.get('aptitud_laboral'):
+                historia_dict['aptitud_laboral'] = 'no_apto_temporal'
+                logger.info("Seteando aptitud_laboral = 'no_apto_temporal' por aplazamiento")
+
+            continue  # NO agregar a recomendaciones_validas
+
+        # CASO 2: "Incluir en PVE/SVE/programa de vigilancia" → programas_sve
+        if re.search(r'\b(incluir|vincular|ingresar|adherir)\s+(en|al)\s+(pve|sve|programa)', desc_lower):
+            # Intentar extraer el programa mencionado
+            programas_mencionados = []
+
+            # Buscar nombres de programas conocidos
+            programas_conocidos = [
+                'dme', 'osteomuscular', 'musculoesqueletico',
+                'ruido', 'auditivo', 'conservacion auditiva',
+                'biologico', 'psicosocial', 'btx', 'solventes',
+                'radiaciones', 'quimico', 'cardiovascular', 'voz', 'visual', 'respiratorio'
+            ]
+
+            for programa in programas_conocidos:
+                if programa in desc_lower:
+                    normalizado = normalize_programa_sve(programa)
+                    if normalizado:
+                        programas_mencionados.append(normalizado)
+
+            if programas_mencionados:
+                programas_sve_adicionales.update(programas_mencionados)
+                logger.info(
+                    f"Reubicando SVE de recomendaciones a programas_sve: "
+                    f"{programas_mencionados} desde '{descripcion[:60]}...'"
+                )
+                continue  # NO agregar a recomendaciones_validas
+            else:
+                # Si no se pudo extraer programa específico, conservar en recomendaciones
+                # (probablemente tiene contexto adicional útil)
+                logger.debug(f"No se pudo extraer programa SVE específico de: '{descripcion[:60]}...'")
+
+        # Si no es ningún caso especial, conservar como recomendación válida
+        recomendaciones_validas.append(rec)
+
+    # Actualizar recomendaciones (sin las reubicadas)
+    historia_dict['recomendaciones'] = recomendaciones_validas
+
+    # Actualizar restricciones_especificas
+    if restricciones_adicionales:
+        restricciones_actuales = historia_dict.get('restricciones_especificas', '')
+        if restricciones_actuales:
+            # Agregar a las existentes
+            todas_restricciones = restricciones_actuales + '. ' + '. '.join(restricciones_adicionales)
+        else:
+            todas_restricciones = '. '.join(restricciones_adicionales)
+
+        historia_dict['restricciones_especificas'] = todas_restricciones
+
+    # Actualizar programas_sve
+    if programas_sve_adicionales:
+        historia_dict['programas_sve'] = sorted(list(programas_sve_adicionales))
+
+    if restricciones_adicionales or (len(programas_sve_adicionales) > len(historia_dict.get('programas_sve', []))):
+        logger.info(
+            f"Reubicación completada: {len(restricciones_adicionales)} restricciones, "
+            f"{len(programas_sve_adicionales)} programas SVE"
+        )
+
+    return historia_dict
+
+
 def validate_signos_vitales(historia_dict: dict, alertas_adicionales: list) -> dict:
     """
     Valida signos vitales contra rangos clínicos esperados.
@@ -803,7 +905,12 @@ class ClaudeProcessor:
                     historia_dict['diagnosticos']
                 )
 
-            # Postprocesamiento: Filtrar recomendaciones genéricas (NUEVO filtro centralizado)
+            # Postprocesamiento: Reubicar recomendaciones mal clasificadas (ANTES de filtrar)
+            # Mueve "aplazado para..." → restricciones, "incluir en SVE" → programas_sve
+            if 'recomendaciones' in historia_dict and historia_dict['recomendaciones']:
+                historia_dict = relocate_misclassified_recommendations(historia_dict)
+
+            # Postprocesamiento: Filtrar recomendaciones genéricas (DESPUÉS de reubicar)
             if 'recomendaciones' in historia_dict and historia_dict['recomendaciones']:
                 historia_dict['recomendaciones'] = filter_recommendations(
                     historia_dict['recomendaciones'],

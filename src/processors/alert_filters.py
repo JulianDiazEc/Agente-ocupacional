@@ -48,6 +48,38 @@ ADMINISTRATIVE_FIELDS_PATTERN = re.compile(
 # FUNCIONES AUXILIARES
 # ============================================================================
 
+def is_signos_vitales_alert_in_cmo(alerta, historia: HistoriaClinicaEstructurada) -> bool:
+    """
+    Verifica si alerta de signos_vitales debe filtrarse en CMO.
+
+    Un CMO (Certificado Médico Ocupacional) puede no tener signos vitales detallados.
+    Solo debe conservar aptitud laboral y diagnósticos.
+
+    Args:
+        alerta: Objeto Alerta
+        historia: Historia clínica procesada
+
+    Returns:
+        bool: True si debe filtrarse (es alerta de signos en CMO)
+    """
+    if historia.tipo_documento_fuente != "cmo":
+        return False
+
+    if alerta.tipo != "dato_faltante":
+        return False
+
+    desc_lower = alerta.descripcion.lower()
+    campo = (alerta.campo_afectado or "").lower()
+
+    # Filtrar alertas sobre signos vitales en CMO
+    signos_keywords = ['signos_vitales', 'signos vitales', 'presion', 'frecuencia', 'temperatura', 'saturacion', 'peso', 'talla', 'imc']
+
+    if any(kw in desc_lower or kw in campo for kw in signos_keywords):
+        return True
+
+    return False
+
+
 def is_administrative_alert(alerta) -> bool:
     """
     Verifica si una alerta menciona campos administrativos.
@@ -186,9 +218,10 @@ def filter_alerts(alertas: List, historia: HistoriaClinicaEstructurada) -> List:
     - fecha_invalida
 
     FILTRAR:
-    - dato_faltante administrativo
-    - dato_faltante redundante en consolidados
-    - dato_faltante inválido para examen_especifico
+    - dato_faltante de signos_vitales en CMO (no requeridos)
+    - dato_faltante administrativo (eps, arl, empresa, cargo, etc.)
+    - dato_faltante redundante en consolidados (campo ya existe)
+    - dato_faltante inválido para examen_especifico (tipo_emo, aptitud, etc.)
     - evaluacion_incompleta (ruido)
 
     Args:
@@ -219,17 +252,22 @@ def filter_alerts(alertas: List, historia: HistoriaClinicaEstructurada) -> List:
             should_filter = True
             razon_filtrado = "evaluacion_incompleta (ruido)"
 
-        # REGLA 2: Filtrar dato_faltante administrativo
+        # REGLA 2: Filtrar signos_vitales en CMO
+        if not should_filter and is_signos_vitales_alert_in_cmo(alerta, historia):
+            should_filter = True
+            razon_filtrado = "signos_vitales en CMO (no requeridos)"
+
+        # REGLA 3: Filtrar dato_faltante administrativo
         if not should_filter and is_administrative_alert(alerta):
             should_filter = True
             razon_filtrado = "administrativa"
 
-        # REGLA 3: Filtrar dato_faltante si cubierta en consolidado
+        # REGLA 4: Filtrar dato_faltante si cubierta en consolidado
         if not should_filter and is_covered_in_consolidated(alerta, historia):
             should_filter = True
             razon_filtrado = "cubierta en consolidado"
 
-        # REGLA 4: Filtrar dato_faltante inválido para examen específico
+        # REGLA 5: Filtrar dato_faltante inválido para examen específico
         if not should_filter and is_invalid_for_exam_especifico(alerta, historia):
             should_filter = True
             razon_filtrado = "inválida para examen específico"
