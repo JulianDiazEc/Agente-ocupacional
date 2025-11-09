@@ -5,6 +5,7 @@ Incluye validación de CIE-10, fechas, rangos de valores, etc.
 """
 
 import re
+import unicodedata
 from datetime import date
 from typing import List, Optional, Tuple
 
@@ -17,6 +18,25 @@ from src.config.schemas import (
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def normalize_text(text: str) -> str:
+    """
+    Normaliza texto: lowercase, sin tildes, sin dobles espacios.
+
+    Args:
+        text: Texto a normalizar
+
+    Returns:
+        str: Texto normalizado
+    """
+    text = text.lower().strip()
+    # Remover tildes
+    text = unicodedata.normalize('NFD', text)
+    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    # Remover dobles espacios
+    text = ' '.join(text.split())
+    return text
 
 
 class CIE10Validator:
@@ -358,6 +378,11 @@ def _check_visual_consistency(historia: HistoriaClinicaEstructurada) -> List[Ale
         if any(diag.codigo_cie10.startswith(code[:4]) for code in VISUAL_DIAGNOSIS_CODES.keys())
     ]
 
+    logger.debug(f"Validación visual: {len(diagnosticos_visuales)} diagnósticos visuales encontrados")
+    if diagnosticos_visuales:
+        for diag in diagnosticos_visuales:
+            logger.debug(f"  - {diag.codigo_cie10}: {diag.descripcion}")
+
     if not diagnosticos_visuales:
         return alertas
 
@@ -367,14 +392,20 @@ def _check_visual_consistency(historia: HistoriaClinicaEstructurada) -> List[Ale
         if ex.tipo == "optometria"
     ]
 
+    logger.debug(f"Validación visual: {len(examenes_visuales)} exámenes de optometría encontrados")
+    if examenes_visuales:
+        for ex in examenes_visuales:
+            logger.debug(f"  - Resultado: {ex.resultado}")
+            logger.debug(f"  - Hallazgos: {ex.hallazgos_clave}")
+
     if not examenes_visuales:
         return alertas
 
     # Detectar inconsistencias
     for diag in diagnosticos_visuales:
         for exam in examenes_visuales:
-            resultado = (exam.resultado or "").lower()
-            hallazgos = (exam.hallazgos_clave or "").lower()
+            resultado = normalize_text(exam.resultado or "")
+            hallazgos = normalize_text(exam.hallazgos_clave or "")
 
             # Indicadores de visión normal/corregida
             indicadores_normales = [
@@ -451,8 +482,8 @@ def _check_hearing_consistency(historia: HistoriaClinicaEstructurada) -> List[Al
     # Detectar inconsistencias
     for diag in diagnosticos_auditivos:
         for exam in examenes_auditivos:
-            resultado = (exam.resultado or "").lower()
-            hallazgos = (exam.hallazgos_clave or "").lower()
+            resultado = normalize_text(exam.resultado or "")
+            hallazgos = normalize_text(exam.hallazgos_clave or "")
 
             # Indicadores de audición normal
             indicadores_normales = [
@@ -532,8 +563,8 @@ def _check_respiratory_consistency(historia: HistoriaClinicaEstructurada) -> Lis
     # Detectar inconsistencias
     for diag in diagnosticos_respiratorios:
         for exam in examenes_respiratorios:
-            resultado = (exam.resultado or "").lower()
-            hallazgos = (exam.hallazgos_clave or "").lower()
+            resultado = normalize_text(exam.resultado or "")
+            hallazgos = normalize_text(exam.hallazgos_clave or "")
 
             # Indicadores de función pulmonar normal
             indicadores_normales = [
@@ -594,7 +625,16 @@ def validate_diagnosis_exam_consistency(historia: HistoriaClinicaEstructurada) -
 
     # SOLO ejecutar en consolidados
     if historia.tipo_documento_fuente != "consolidado":
+        logger.debug(
+            f"Validación cruzada diagnóstico↔examen omitida: "
+            f"tipo_documento_fuente = '{historia.tipo_documento_fuente}' (no es consolidado)"
+        )
         return alertas
+
+    logger.info(
+        f"Ejecutando validación cruzada diagnóstico↔examen en consolidado. "
+        f"Diagnósticos: {len(historia.diagnosticos)}, Exámenes: {len(historia.examenes)}"
+    )
 
     # Validaciones modulares
     alertas.extend(_check_visual_consistency(historia))
@@ -604,6 +644,10 @@ def validate_diagnosis_exam_consistency(historia: HistoriaClinicaEstructurada) -
     if alertas:
         logger.info(
             f"Validación cruzada diagnóstico↔examen: {len(alertas)} inconsistencias detectadas"
+        )
+    else:
+        logger.info(
+            f"Validación cruzada diagnóstico↔examen: Sin inconsistencias detectadas"
         )
 
     return alertas
