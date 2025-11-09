@@ -20,11 +20,11 @@ class ExcelExporter:
     Exportador de historias clínicas a Excel.
 
     Genera un archivo Excel con múltiples hojas:
-    - Resumen: Información general de todas las HCs
-    - Diagnósticos: Todos los diagnósticos
+    - Resumen: Información general de todas las HCs (incluye tipo_documento_fuente)
+    - Diagnósticos: Todos los diagnósticos (soporta CIE-10 cortos: N80, M50, etc.)
     - Exámenes: Todos los exámenes paraclínicos
-    - Recomendaciones: Todas las recomendaciones
-    - Alertas: Todas las alertas de validación
+    - Recomendaciones: Todas las recomendaciones (post-filtrado de checkboxes)
+    - Alertas: Todas las alertas de validación (solo consolidados)
     """
 
     def __init__(self, output_dir: Path):
@@ -87,6 +87,7 @@ class ExcelExporter:
         for h in historias:
             row = {
                 'ID Procesamiento': h.id_procesamiento,
+                'Tipo Documento': h.tipo_documento_fuente,  # Nuevo: hc_completa/cmo/examen_especifico/consolidado
                 'Archivo Origen': h.archivo_origen,
                 'Fecha Procesamiento': h.fecha_procesamiento,
                 'Nombre': h.datos_empleado.nombre_completo,
