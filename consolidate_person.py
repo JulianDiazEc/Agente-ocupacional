@@ -104,9 +104,71 @@ def merge_antecedentes(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return list(antecedentes_dict.values())
 
 
+def _es_examen_relevante(exam: Dict[str, Any]) -> bool:
+    """
+    Determina si un examen debe incluirse en el consolidado.
+
+    INCLUIR si cumple al menos uno:
+    - interpretacion ∈ {"alterado", "critico", "patologico"}
+    - hallazgos_clave NO vacío
+    - resultado NO vacío
+    - No tiene interpretacion pero tiene texto no trivial
+
+    EXCLUIR solo cuando TODO:
+    - interpretacion == "normal"
+    - Y hallazgos_clave vacío o claramente "normal"
+    - Y resultado vacío o claramente "normal"
+
+    Args:
+        exam: Diccionario del examen
+
+    Returns:
+        True si debe incluirse, False si excluir
+    """
+    interpretacion = (exam.get('interpretacion', '') or '').lower().strip()
+    hallazgos = (exam.get('hallazgos_clave', '') or '').strip()
+    resultado = (exam.get('resultado', '') or '').strip()
+
+    # INCLUIR: interpretacion alterada/crítica/patológica
+    if interpretacion in ['alterado', 'critico', 'patologico', 'anormal']:
+        return True
+
+    # INCLUIR: tiene hallazgos_clave no vacío
+    if hallazgos and hallazgos.lower() not in ['normal', 'sin hallazgos', 'sin alteraciones']:
+        return True
+
+    # INCLUIR: tiene resultado no vacío
+    if resultado and resultado.lower() not in ['normal', 'sin alteraciones']:
+        return True
+
+    # INCLUIR: no tiene interpretacion pero tiene texto no trivial
+    if not interpretacion and (hallazgos or resultado):
+        return True
+
+    # EXCLUIR: solo si interpretacion=="normal" Y hallazgos/resultado vacíos o "normal"
+    if interpretacion == 'normal':
+        hallazgos_vacio_o_normal = (
+            not hallazgos or
+            hallazgos.lower() in ['normal', 'sin hallazgos', 'sin alteraciones', 'dentro de limites normales']
+        )
+        resultado_vacio_o_normal = (
+            not resultado or
+            resultado.lower() in ['normal', 'sin alteraciones', 'dentro de limites normales']
+        )
+
+        if hallazgos_vacio_o_normal and resultado_vacio_o_normal:
+            return False  # Excluir
+
+    # Default: incluir (conservador)
+    return True
+
+
 def merge_examenes(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Merge inteligente de exámenes evitando duplicados.
+
+    SOLO incluye exámenes con hallazgos anormales o clínicamente relevantes.
+    Excluye exámenes normales sin hallazgos.
 
     Consolida por tipo + fecha. Mantiene orden cronológico.
     """
@@ -118,6 +180,10 @@ def merge_examenes(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             fecha = exam.get('fecha_realizacion', '')
 
             if not tipo:
+                continue
+
+            # Filtrar: solo incluir exámenes relevantes
+            if not _es_examen_relevante(exam):
                 continue
 
             # Clave única: tipo + fecha
@@ -233,19 +299,6 @@ def merge_remisiones(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return list(remisiones_dict.values())
 
 
-def merge_alertas(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    [DEPRECATED] Ya no se usa - Las alertas se generan solo sobre el consolidado final.
-
-    Anteriormente hacía merge de alertas de documentos individuales,
-    pero esto generaba ruido (alertas de exámenes específicos que no aplican).
-
-    Ahora las alertas se ejecutan SOLO sobre el consolidado final con lista blanca clínica.
-    """
-    # Esta función ya no se llama, pero se mantiene por compatibilidad
-    return []
-
-
 def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Consolida múltiples historias clínicas en una sola.
@@ -268,8 +321,6 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
     # Usar HC completa como base si existe, sino la primera
     if hcs_completas:
         consolidada = hcs_completas[0].copy()
-        # Tipo documento del consolidado
-        consolidada['tipo_documento_fuente'] = 'hc_completa'
     else:
         consolidada = historias[0].copy()
 
@@ -403,9 +454,13 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
         alertas_validacion = validate_historia_completa(historia_obj)
 
         # Ejecutar validación cruzada diagnóstico↔examen (SOLO en consolidado)
-        from src.processors.validators import validate_diagnosis_exam_consistency
+        from src.processors.validators import validate_diagnosis_exam_consistency, validate_examenes_criticos_sin_reflejo
         alertas_cruzadas = validate_diagnosis_exam_consistency(historia_obj)
         alertas_validacion.extend(alertas_cruzadas)
+
+        # Validar que exámenes críticos/alterados tengan reflejo (SOLO en consolidado)
+        alertas_hallazgos = validate_examenes_criticos_sin_reflejo(historia_obj)
+        alertas_validacion.extend(alertas_hallazgos)
 
         # Filtrar con lista blanca clínica
         alertas_filtradas = filter_alerts(alertas_validacion, historia_obj)

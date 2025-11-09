@@ -647,6 +647,74 @@ def validate_diagnosis_exam_consistency(historia: HistoriaClinicaEstructurada) -
     return alertas
 
 
+def validate_examenes_criticos_sin_reflejo(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
+    """
+    Valida que exámenes críticos/alterados tengan reflejo en diagnósticos/recomendaciones/restricciones.
+
+    Un hallazgo crítico debe tener eco en:
+    - diagnosticos, O
+    - recomendaciones, O
+    - restricciones_especificas
+
+    Si no tiene reflejo → inconsistencia_diagnostica severidad baja.
+
+    Esta función se llama SOLO desde consolidate_person.py sobre el consolidado final.
+
+    Args:
+        historia: Historia clínica consolidada
+
+    Returns:
+        List[Alerta]: Alertas de inconsistencia
+    """
+    alertas = []
+
+    # Buscar exámenes con interpretacion critico/alterado
+    examenes_criticos = [
+        ex for ex in historia.examenes
+        if ex.interpretacion and ex.interpretacion.lower() in ['critico', 'alterado']
+    ]
+
+    for exam in examenes_criticos:
+        tipo = exam.tipo or ''
+        hallazgos = exam.hallazgos_clave or ''
+
+        # Verificar si hay reflejo en diagnósticos
+        tiene_diagnostico = any(
+            tipo.lower() in (diag.descripcion or '').lower()
+            for diag in historia.diagnosticos
+        )
+
+        # Verificar si hay reflejo en recomendaciones
+        tiene_recomendacion = any(
+            tipo.lower() in (rec.descripcion or '').lower()
+            for rec in historia.recomendaciones
+        )
+
+        # Verificar si hay reflejo en restricciones
+        restricciones = historia.restricciones_especificas or ''
+        tiene_restriccion = tipo.lower() in restricciones.lower()
+
+        # Si no tiene reflejo en ningún lado, alerta
+        if not (tiene_diagnostico or tiene_recomendacion or tiene_restriccion):
+            alertas.append(
+                Alerta(
+                    tipo="inconsistencia_diagnostica",
+                    severidad="baja",
+                    campo_afectado="examenes",
+                    descripcion=(
+                        f"Examen {exam.interpretacion} de {tipo} con hallazgo '{hallazgos[:80]}' "
+                        f"sin reflejo en diagnósticos, recomendaciones o restricciones"
+                    ),
+                    accion_sugerida=(
+                        "Verificar si el hallazgo requiere diagnóstico CIE-10, "
+                        "recomendación médica o restricción laboral específica"
+                    )
+                )
+            )
+
+    return alertas
+
+
 def validate_historia_completa(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
     """
     Ejecuta todas las validaciones sobre una historia clínica.
@@ -730,5 +798,6 @@ __all__ = [
     "DateValidator",
     "ClinicalValueValidator",
     "validate_historia_completa",
-    "validate_diagnosis_exam_consistency"
+    "validate_diagnosis_exam_consistency",
+    "validate_examenes_criticos_sin_reflejo"
 ]
