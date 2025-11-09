@@ -22,14 +22,16 @@ class AzureDocumentExtractor(PDFExtractor):
     """
     Extractor de PDFs usando Azure Document Intelligence.
 
-    Utiliza el modelo "prebuilt-read" para extracción de texto con OCR.
+    Utiliza el modelo "prebuilt-layout" para extracción de texto con OCR
+    y detección de tablas estructuradas. Esto preserva la estructura
+    de tablas que de otra forma se convertirían a texto lineal.
     """
 
     def __init__(
         self,
         endpoint: Optional[str] = None,
         key: Optional[str] = None,
-        model_id: str = "prebuilt-read"
+        model_id: str = "prebuilt-layout"
     ):
         """
         Inicializa el cliente de Azure Document Intelligence.
@@ -37,7 +39,7 @@ class AzureDocumentExtractor(PDFExtractor):
         Args:
             endpoint: Endpoint de Azure (si None, usa el de settings)
             key: API Key de Azure (si None, usa el de settings)
-            model_id: ID del modelo a usar (default: prebuilt-read)
+            model_id: ID del modelo a usar (default: prebuilt-layout para tablas)
         """
         settings = get_settings()
 
@@ -105,6 +107,12 @@ class AzureDocumentExtractor(PDFExtractor):
             # Extraer texto
             extracted_text = self._extract_text_from_result(result)
 
+            # Formatear y agregar tablas estructuradas (si existen)
+            tables_text = self._format_tables(result)
+            if tables_text:
+                # Agregar tablas al final del texto con separador claro
+                extracted_text = f"{extracted_text}\n\n{'='*70}\nTABLAS ESTRUCTURADAS DETECTADAS:\n{tables_text}"
+
             # Calcular confianza promedio
             confidence = self._calculate_average_confidence(result)
 
@@ -112,15 +120,17 @@ class AzureDocumentExtractor(PDFExtractor):
             is_scanned = self._is_scanned_document(result)
 
             # Metadata adicional
+            table_count = len(result.tables) if hasattr(result, 'tables') and result.tables else 0
             metadata = {
                 "page_count": len(result.pages),
                 "model_id": self.model_id,
                 "api_version": result.api_version if hasattr(result, 'api_version') else None,
+                "table_count": table_count,
             }
 
             logger.info(
                 f"Extracción exitosa: {len(extracted_text)} caracteres, "
-                f"{len(result.pages)} páginas, confianza: {confidence:.2f}"
+                f"{len(result.pages)} páginas, {table_count} tabla(s), confianza: {confidence:.2f}"
             )
 
             return ExtractionResult(
@@ -164,6 +174,63 @@ class AzureDocumentExtractor(PDFExtractor):
             return "\n\n".join(pages_text)
 
         return result.content
+
+    def _format_tables(self, result) -> str:
+        """
+        Formatea tablas estructuradas para presentación legible.
+
+        Extrae tablas detectadas por Azure y las formatea en texto estructurado
+        que preserva filas y columnas, facilitando la interpretación correcta
+        de checkboxes, opciones y valores tabulares.
+
+        Args:
+            result: Resultado de begin_analyze_document()
+
+        Returns:
+            str: Tablas formateadas como texto estructurado (vacío si no hay tablas)
+        """
+        if not hasattr(result, 'tables') or not result.tables:
+            return ""
+
+        formatted_tables = []
+
+        for table_idx, table in enumerate(result.tables, 1):
+            table_lines = [
+                f"\n{'='*70}",
+                f"[TABLA {table_idx}] - {table.row_count} filas x {table.column_count} columnas",
+                f"{'='*70}"
+            ]
+
+            # Crear matriz de celdas
+            cells_matrix = {}
+            for cell in table.cells:
+                row = cell.row_index
+                col = cell.column_index
+                content = cell.content.strip() if cell.content else ""
+                cells_matrix[(row, col)] = content
+
+            # Formatear como tabla legible
+            for row in range(table.row_count):
+                row_cells = []
+                for col in range(table.column_count):
+                    content = cells_matrix.get((row, col), "")
+                    # Limitar ancho de celda para mejor visualización
+                    content = content[:50] if len(content) > 50 else content
+                    row_cells.append(content)
+
+                # Formatear fila con separadores
+                row_text = " | ".join(row_cells)
+                table_lines.append(f"Fila {row + 1}: | {row_text} |")
+
+            table_lines.append(f"{'='*70}\n")
+            formatted_tables.append("\n".join(table_lines))
+
+        tables_text = "\n".join(formatted_tables)
+
+        if formatted_tables:
+            logger.info(f"Formateadas {len(formatted_tables)} tabla(s) estructurada(s)")
+
+        return tables_text
 
     def _calculate_average_confidence(self, result) -> float:
         """
