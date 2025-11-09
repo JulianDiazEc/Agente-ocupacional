@@ -330,6 +330,285 @@ class ClinicalValueValidator:
         return alertas
 
 
+def _check_visual_consistency(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
+    """
+    Valida consistencia entre diagnósticos visuales y exámenes de optometría.
+
+    Detecta:
+    - Diagnóstico visual refractivo (H52.x: miopía, astigmatismo, hipermetropía)
+    - Examen de optometría con visión corregida/normal
+
+    Returns:
+        List[Alerta]: Alertas de inconsistencia (severidad baja)
+    """
+    alertas = []
+
+    # Códigos CIE-10 de problemas visuales refractivos
+    VISUAL_DIAGNOSIS_CODES = {
+        'H52.0': 'Hipermetropía',
+        'H52.1': 'Miopía',
+        'H52.2': 'Astigmatismo',
+        'H52.3': 'Anisometropía',
+        'H52.4': 'Presbicia'
+    }
+
+    # Buscar diagnósticos visuales
+    diagnosticos_visuales = [
+        diag for diag in historia.diagnosticos
+        if any(diag.codigo_cie10.startswith(code[:4]) for code in VISUAL_DIAGNOSIS_CODES.keys())
+    ]
+
+    if not diagnosticos_visuales:
+        return alertas
+
+    # Buscar exámenes de optometría
+    examenes_visuales = [
+        ex for ex in historia.examenes
+        if ex.tipo == "optometria"
+    ]
+
+    if not examenes_visuales:
+        return alertas
+
+    # Detectar inconsistencias
+    for diag in diagnosticos_visuales:
+        for exam in examenes_visuales:
+            resultado = (exam.resultado or "").lower()
+            hallazgos = (exam.hallazgos_clave or "").lower()
+
+            # Indicadores de visión normal/corregida
+            indicadores_normales = [
+                "20/20", "20/25",
+                "con correccion", "corregido", "corregida",
+                "normal", "dentro de limites",
+                "vision corregida", "ojo derecho 20/20", "ojo izquierdo 20/20"
+            ]
+
+            tiene_vision_normal = any(
+                ind in resultado or ind in hallazgos
+                for ind in indicadores_normales
+            )
+
+            if tiene_vision_normal:
+                alertas.append(
+                    Alerta(
+                        tipo="inconsistencia_diagnostica",
+                        severidad="baja",
+                        campo_afectado="diagnosticos",
+                        descripcion=(
+                            f"Diagnóstico de {diag.descripcion} ({diag.codigo_cie10}) "
+                            f"pero examen de optometría indica: {exam.resultado or exam.hallazgos_clave}"
+                        ),
+                        accion_sugerida=(
+                            "Confirmar si el diagnóstico visual requiere corrección óptica actual "
+                            "o es hallazgo leve/corregido. Revisar si aplica restricción laboral."
+                        )
+                    )
+                )
+                break  # No duplicar alerta por mismo diagnóstico
+
+    return alertas
+
+
+def _check_hearing_consistency(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
+    """
+    Valida consistencia entre diagnósticos auditivos y exámenes de audiometría.
+
+    Detecta:
+    - Diagnóstico de hipoacusia/trauma acústico (H90.x, H91.x)
+    - Audiometría con audición normal
+
+    Returns:
+        List[Alerta]: Alertas de inconsistencia (severidad baja)
+    """
+    alertas = []
+
+    # Códigos CIE-10 de problemas auditivos
+    HEARING_DIAGNOSIS_CODES = {
+        'H90': 'Hipoacusia conductiva y neurosensorial',
+        'H91': 'Otras pérdidas de audición',
+        'H83.3': 'Efectos del ruido sobre el oído interno'
+    }
+
+    # Buscar diagnósticos auditivos
+    diagnosticos_auditivos = [
+        diag for diag in historia.diagnosticos
+        if any(diag.codigo_cie10.startswith(code) for code in HEARING_DIAGNOSIS_CODES.keys())
+    ]
+
+    if not diagnosticos_auditivos:
+        return alertas
+
+    # Buscar exámenes de audiometría
+    examenes_auditivos = [
+        ex for ex in historia.examenes
+        if ex.tipo == "audiometria"
+    ]
+
+    if not examenes_auditivos:
+        return alertas
+
+    # Detectar inconsistencias
+    for diag in diagnosticos_auditivos:
+        for exam in examenes_auditivos:
+            resultado = (exam.resultado or "").lower()
+            hallazgos = (exam.hallazgos_clave or "").lower()
+
+            # Indicadores de audición normal
+            indicadores_normales = [
+                "audicion normal", "auditivamente normal",
+                "bilateral normal", "dentro de limites normales",
+                "sin perdida auditiva", "sin hipoacusia",
+                "umbrales normales", "audiometria normal"
+            ]
+
+            tiene_audicion_normal = any(
+                ind in resultado or ind in hallazgos
+                for ind in indicadores_normales
+            )
+
+            if tiene_audicion_normal:
+                alertas.append(
+                    Alerta(
+                        tipo="inconsistencia_diagnostica",
+                        severidad="baja",
+                        campo_afectado="diagnosticos",
+                        descripcion=(
+                            f"Diagnóstico de {diag.descripcion} ({diag.codigo_cie10}) "
+                            f"pero audiometría indica: {exam.resultado or exam.hallazgos_clave}"
+                        ),
+                        accion_sugerida=(
+                            "Confirmar si la hipoacusia se ha resuelto, es leve sin repercusión actual, "
+                            "o si el diagnóstico requiere actualización. Revisar exposición a ruido."
+                        )
+                    )
+                )
+                break
+
+    return alertas
+
+
+def _check_respiratory_consistency(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
+    """
+    Valida consistencia entre diagnósticos respiratorios y espirometría.
+
+    Detecta:
+    - Diagnóstico de EPOC/asma/afección respiratoria (J44.x, J45.x, J68.x)
+    - Espirometría con función pulmonar normal
+
+    Returns:
+        List[Alerta]: Alertas de inconsistencia (severidad baja)
+    """
+    alertas = []
+
+    # Códigos CIE-10 de problemas respiratorios ocupacionales
+    RESPIRATORY_DIAGNOSIS_CODES = {
+        'J44': 'EPOC (Enfermedad Pulmonar Obstructiva Crónica)',
+        'J45': 'Asma',
+        'J68': 'Afecciones respiratorias por químicos, gases, humos y vapores',
+        'J60': 'Neumoconiosis de los mineros del carbón',
+        'J61': 'Neumoconiosis debida al asbesto',
+        'J62': 'Neumoconiosis debida a polvo de sílice'
+    }
+
+    # Buscar diagnósticos respiratorios
+    diagnosticos_respiratorios = [
+        diag for diag in historia.diagnosticos
+        if any(diag.codigo_cie10.startswith(code) for code in RESPIRATORY_DIAGNOSIS_CODES.keys())
+    ]
+
+    if not diagnosticos_respiratorios:
+        return alertas
+
+    # Buscar exámenes de espirometría
+    examenes_respiratorios = [
+        ex for ex in historia.examenes
+        if ex.tipo == "espirometria"
+    ]
+
+    if not examenes_respiratorios:
+        return alertas
+
+    # Detectar inconsistencias
+    for diag in diagnosticos_respiratorios:
+        for exam in examenes_respiratorios:
+            resultado = (exam.resultado or "").lower()
+            hallazgos = (exam.hallazgos_clave or "").lower()
+
+            # Indicadores de función pulmonar normal
+            indicadores_normales = [
+                "funcion pulmonar normal", "funcion respiratoria normal",
+                "espirometria normal", "patron normal",
+                "sin obstruccion", "sin restriccion",
+                "fev1 normal", "fvc normal",
+                "dentro de limites normales", "parametros normales"
+            ]
+
+            tiene_funcion_normal = any(
+                ind in resultado or ind in hallazgos
+                for ind in indicadores_normales
+            )
+
+            if tiene_funcion_normal:
+                alertas.append(
+                    Alerta(
+                        tipo="inconsistencia_diagnostica",
+                        severidad="baja",
+                        campo_afectado="diagnosticos",
+                        descripcion=(
+                            f"Diagnóstico de {diag.descripcion} ({diag.codigo_cie10}) "
+                            f"pero espirometría indica: {exam.resultado or exam.hallazgos_clave}"
+                        ),
+                        accion_sugerida=(
+                            "Confirmar si la condición respiratoria está controlada, es leve, "
+                            "o si el diagnóstico requiere actualización. Revisar exposición a irritantes."
+                        )
+                    )
+                )
+                break
+
+    return alertas
+
+
+def validate_diagnosis_exam_consistency(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
+    """
+    Valida consistencia entre diagnósticos y exámenes paraclínicos objetivos.
+
+    SOLO para consolidados. Detecta inconsistencias en:
+    1. Diagnósticos visuales (H52.x) vs optometría
+    2. Diagnósticos auditivos (H90.x, H91.x) vs audiometría
+    3. Diagnósticos respiratorios (J44.x, J45.x, J68.x) vs espirometría
+
+    NO valida:
+    - Metabólicos (pueden estar controlados con medicación)
+    - Cardiovasculares (mismo motivo)
+    - Osteomusculares (dolor sin hallazgo objetivo es válido)
+
+    Args:
+        historia: Historia clínica consolidada
+
+    Returns:
+        List[Alerta]: Alertas de inconsistencia (severidad baja)
+    """
+    alertas = []
+
+    # SOLO ejecutar en consolidados
+    if historia.tipo_documento_fuente != "consolidado":
+        return alertas
+
+    # Validaciones modulares
+    alertas.extend(_check_visual_consistency(historia))
+    alertas.extend(_check_hearing_consistency(historia))
+    alertas.extend(_check_respiratory_consistency(historia))
+
+    if alertas:
+        logger.info(
+            f"Validación cruzada diagnóstico↔examen: {len(alertas)} inconsistencias detectadas"
+        )
+
+    return alertas
+
+
 def validate_historia_completa(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
     """
     Ejecuta todas las validaciones sobre una historia clínica.
@@ -402,6 +681,10 @@ def validate_historia_completa(historia: HistoriaClinicaEstructurada) -> List[Al
             )
         )
 
+    # Validar consistencia diagnóstico ↔ examen (SOLO consolidados)
+    # Cruza diagnósticos visuales/auditivos/respiratorios con sus exámenes objetivos
+    alertas.extend(validate_diagnosis_exam_consistency(historia))
+
     tipo_doc = historia.tipo_documento_fuente
     logger.info(f"Validación completa ({tipo_doc}): {len(alertas)} alertas generadas")
 
@@ -412,5 +695,6 @@ __all__ = [
     "CIE10Validator",
     "DateValidator",
     "ClinicalValueValidator",
-    "validate_historia_completa"
+    "validate_historia_completa",
+    "validate_diagnosis_exam_consistency"
 ]
