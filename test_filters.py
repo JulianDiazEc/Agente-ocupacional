@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from src.processors.recommendation_filters import filter_recommendations
 from src.processors.alert_filters import filter_alerts
+from src.processors.validators import validate_historia_completa
 from src.config.schemas import HistoriaClinicaEstructurada
 
 
@@ -77,8 +78,16 @@ def test_alert_filter(caso_id: str, historia_dict: dict):
         print(f"⚠️  Error validando schema: {e}")
         return
 
-    alertas_antes = historia.alertas_validacion
+    # IMPORTANTE: Ejecutar validaciones para generar alertas frescas
+    # (las alertas en el JSON pueden ser de una versión anterior del código)
+    print("⚙️  Ejecutando validaciones (incluyendo cross-validation)...")
+    alertas_generadas = validate_historia_completa(historia)
+
+    # Combinar alertas del JSON + alertas generadas ahora
+    alertas_antes = list(historia.alertas_validacion) + alertas_generadas
     print(f"🔍 Alertas ANTES del filtro: {len(alertas_antes)}")
+    print(f"   - Del JSON: {len(historia.alertas_validacion)}")
+    print(f"   - Generadas ahora: {len(alertas_generadas)}")
 
     if alertas_antes:
         print("\nAlertas actuales:")
