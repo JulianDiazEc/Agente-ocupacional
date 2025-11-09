@@ -46,8 +46,10 @@ class CIE10Validator:
     Valida formato y opcionalmente contra catálogo oficial.
     """
 
-    # Patrón para código CIE-10: Letra + 2 dígitos + punto + 1 dígito
-    CIE10_PATTERN = re.compile(r'^[A-Z]\d{2}\.\d$')
+    # Patrón para código CIE-10 (flexible):
+    # - Corto: N80, M50 (letra + 2 dígitos)
+    # - Completo: H52.1, M54.5 (letra + 2 dígitos + punto + 1-2 dígitos)
+    CIE10_PATTERN = re.compile(r'^[A-Z]\d{2}(\.\d{1,2})?$')
 
     # Rangos válidos de capítulos CIE-10
     VALID_CHAPTERS = {
@@ -83,17 +85,25 @@ class CIE10Validator:
         """
         Valida el formato de un código CIE-10.
 
+        ACEPTA formatos cortos (N80, M50) y completos (H52.1, M54.5).
+        NUNCA rechaza por formato - problemas van a alertas, no ValidationError.
+
         Args:
             code: Código CIE-10 a validar
 
         Returns:
-            Tuple[bool, str]: (es_valido, mensaje_error)
+            Tuple[bool, str]: (es_valido, mensaje_warning)
+            - (True, None): Formato completo correcto
+            - (True, "warning"): Formato corto pero aceptable
+            - (False, "error"): Solo rechaza si es completamente inválido
 
         Example:
             >>> CIE10Validator.validate_format("M54.5")
             (True, None)
-            >>> CIE10Validator.validate_format("M545")
-            (False, "Formato inválido: debe ser Letra##.# (ej: M54.5)")
+            >>> CIE10Validator.validate_format("M50")
+            (True, "Formato corto sin subcategoría (recomendado: M50.X)")
+            >>> CIE10Validator.validate_format("XYZ")
+            (False, "Formato completamente inválido")
         """
         if not code:
             return False, "Código vacío"
@@ -101,9 +111,9 @@ class CIE10Validator:
         # Convertir a mayúsculas
         code = code.upper().strip()
 
-        # Validar patrón
+        # Validar patrón básico
         if not cls.CIE10_PATTERN.match(code):
-            return False, f"Formato inválido: debe ser Letra##.# (ej: M54.5). Recibido: {code}"
+            return False, f"Formato inválido: debe ser N80 o M54.5. Recibido: {code}"
 
         # Validar capítulo
         chapter = code[0]
@@ -118,6 +128,11 @@ class CIE10Validator:
                 return False, f"Número fuera de rango para capítulo {chapter}: {number}"
         except ValueError:
             return False, f"Número inválido en código: {code[1:3]}"
+
+        # Si llega aquí: código es válido
+        # Advertencia si es formato corto (sin subcategoría)
+        if '.' not in code:
+            return True, f"Formato corto sin subcategoría (recomendado agregar: {code}.X)"
 
         return True, None
 
@@ -151,6 +166,7 @@ class CIE10Validator:
             is_valid, error_msg = cls.validate_format(diag.codigo_cie10)
 
             if not is_valid:
+                # Formato completamente inválido → alerta ALTA
                 alertas.append(
                     Alerta(
                         tipo="formato_incorrecto",
@@ -158,6 +174,17 @@ class CIE10Validator:
                         campo_afectado=f"diagnosticos[{i}].codigo_cie10",
                         descripcion=f"Código CIE-10 inválido: {diag.codigo_cie10}. {error_msg}",
                         accion_sugerida="Corregir el código CIE-10 manualmente"
+                    )
+                )
+            elif error_msg:
+                # Formato corto pero aceptable → alerta BAJA (warning)
+                alertas.append(
+                    Alerta(
+                        tipo="formato_incorrecto",
+                        severidad="baja",
+                        campo_afectado=f"diagnosticos[{i}].codigo_cie10",
+                        descripcion=f"Código CIE-10 en formato corto: {diag.codigo_cie10}. {error_msg}",
+                        accion_sugerida="Agregar subcategoría si está disponible en el documento"
                     )
                 )
 
