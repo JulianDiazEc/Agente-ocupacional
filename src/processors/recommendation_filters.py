@@ -35,8 +35,10 @@ EXAM_NAME_TERMS = [
 
 # Patrones genéricos sin contexto (regex)
 GENERIC_PATTERNS = [
-    # EPP genérico
-    r'uso\s+(adecuado|correcto)\s+de\s+(epp|elementos)',
+    # EPP genérico (CUALQUIER uso de EPP sin especificidad)
+    r'\buso\s+de\s+epp\b',  # Uso de EPP (cualquier variante)
+    r'\bepp\s+(auditivo|visual|respiratorio)',  # EPP + tipo sin contexto
+    r'uso\s+(adecuado|correcto|permanente|obligatorio)\s+de\s+(epp|elementos)',
     r'uso\s+de\s+proteccion\s+personal',
     r'elementos\s+de\s+proteccion\s+personal',
 
@@ -44,16 +46,19 @@ GENERIC_PATTERNS = [
     r'educacion\s+en\s+(higiene|postura|autocuidado|estilos)',
     r'capacitacion\s+en\s+(autocuidado|estilos|habitos)',
 
-    # Hábitos genéricos
-    r'habitos\s+saludables',
+    # Hábitos genéricos (MÁS AMPLIO)
+    r'\bhabitos\s+(saludables|y\s+estilos)',  # Hábitos saludables o "hábitos y estilos"
+    r'continuar\s+(o\s+)?(adoptar\s+)?habitos',  # Continuar/adoptar hábitos
     r'estilo\s+de\s+vida\s+saludable',
     r'mantener\s+habitos',
+    r'adoptar\s+habitos',
 
     # Fórmulas administrativas
-    r'adherir\s+(lineamientos|guia|protocolo)',
+    r'adherir\s+(lineamientos|guia|protocolo|a\s+los\s+lineamientos)',
     r'seguir\s+(lineamientos|guia|protocolo)',
     r'control\s+segun\s+(pve|programa)',
     r'lineamientos\s+del\s+ministerio',
+    r'lineamientos\s+(nacionales|internacionales|ministerio)',
 
     # Medidas genéricas sin parámetro
     r'\breposo\s+auditivo\b(?!.*\d+\s*(min|hora|hr))',  # reposo sin duración
@@ -69,9 +74,10 @@ GENERIC_PATTERNS = [
     r'pausas\s+activas(?!.*cada|\d+)',
     r'pausas\s+laborales(?!.*cada|\d+)',
 
-    # Postura genérica
+    # Postura/ergonomía genérica
     r'buena\s+postura(?!.*por|debido)',
     r'higiene\s+postural(?!.*por|debido)',
+    r'ergonomia\s+(puesto\s+de\s+trabajo|laboral)(?!.*por|debido)',  # Ergonomía genérica
 
     # Hidratación genérica
     r'\bhidratacion\b(?!.*\d+\s*(litros|ml))',
@@ -104,54 +110,54 @@ def normalize_text(text: str) -> str:
 
 def has_clinical_context(descripcion: str) -> bool:
     """
-    Verifica si la recomendación tiene contexto clínico específico.
+    Verifica si la recomendación tiene contexto clínico ESPECÍFICO.
 
-    Contexto clínico = contiene al menos UNO de:
-    - Números con unidades: 85 dB, 15 kg, 120/80 mmHg
-    - Frecuencias: cada 6 meses, anual, semanal
-    - Causales: por exposición, por diagnóstico, debido a
-    - Parámetros: >, <, =
-    - Condiciones específicas
+    Contexto clínico VÁLIDO (debe estar anclado a condición concreta):
+    - Números con unidades médicas: 85 dB, 15 kg, IMC >30
+    - Frecuencias temporales con números: cada 6 meses, 3 veces por semana
+    - Causales médicos: por diagnóstico de X, por hallazgo de Y, por exposición a Z dB
+    - Códigos CIE-10
+    - Condiciones con parámetros medibles
+
+    NO es contexto válido:
+    - "puesto de trabajo", "cargo", "área" (genérico)
+    - Frecuencias sin causales: "anual", "mensual" (sin decir por qué)
 
     Args:
         descripcion: Texto de la recomendación
 
     Returns:
-        bool: True si tiene contexto clínico
+        bool: True si tiene contexto clínico específico y anclado
     """
     desc_lower = descripcion.lower()
 
-    # Indicadores de contexto clínico
+    # Indicadores de contexto clínico ESPECÍFICO
     clinical_indicators = [
-        # Números con unidades
-        r'\d+\s*(mg|db|kg|mmhg|cm|mm|metros|°|grados|fps|hz)',
+        # Números con unidades médicas
+        r'\d+\s*(mg|db|kg|mmhg|cm|mm|ml|litros|°c|grados|fps|hz|khz)',
 
-        # Frecuencias temporales
-        r'cada\s+\d+',
-        r'\d+\s*(veces|sesiones)',
-        r'\b(anual|mensual|semanal|diario|trimestral|semestral)\b',
-
-        # Causales clínicos
-        r'por\s+(exposicion|diagnostico|hallazgo|riesgo|antecedente)',
-        r'debido\s+a',
-        r'relacionado\s+con',
-
-        # Parámetros y condiciones
-        r'(>|<|=|mayor|menor|superior|inferior)\s*\d+',
-        r'\bimc\s*(>|<|=)',
+        # Parámetros medibles
+        r'(>|<|=|mayor\s+a|menor\s+a|superior\s+a|inferior\s+a)\s*\d+',
+        r'\bimc\s*(>|<|=|mayor|menor)',
         r'nivel\s+de\s+\d+',
 
-        # Códigos médicos
-        r'\b[A-Z]\d{2}\.\d\b',  # CIE-10
+        # Códigos médicos (CIE-10)
+        r'\b[A-Z]\d{2}\.\d\b',
 
-        # Especificidad de puesto/área
-        r'puesto\s+de',
-        r'cargo\s+de',
-        r'en\s+el\s+area\s+de',
+        # Causales médicos ESPECÍFICOS (con condición concreta)
+        r'por\s+(diagnostico\s+de|hallazgo\s+de|antecedente\s+de)\s+\w+',
+        r'por\s+exposicion\s+a\s+\d+',  # Por exposición a X dB
+        r'por\s+riesgo\s+de\s+\w+',
+        r'debido\s+a\s+(diagnostico|hallazgo|exposicion)',
+        r'relacionado\s+con\s+(diagnostico|hallazgo|patologia)',
 
-        # Condiciones específicas
-        r'si\s+\w+\s+(>|<|=)',
-        r'en\s+caso\s+de\s+\w+\s+(>|<)',
+        # Frecuencias CON causales (no solas)
+        r'cada\s+\d+\s*(meses|semanas|dias|horas)\s+(por|debido|para)',
+        r'\d+\s*(veces|sesiones)\s+por\s+(semana|mes)\s+(por|debido|para)',
+
+        # Condiciones específicas con valores
+        r'si\s+\w+\s+(>|<|=)\s*\d+',
+        r'en\s+caso\s+de\s+\w+\s+(>|<|=)\s*\d+',
     ]
 
     for pattern in clinical_indicators:

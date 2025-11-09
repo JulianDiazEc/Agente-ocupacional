@@ -84,9 +84,8 @@ def is_covered_in_consolidated(alerta, historia: HistoriaClinicaEstructurada) ->
     if alerta.tipo != "dato_faltante":
         return False
 
+    # Verificar por campo_afectado
     campo = alerta.campo_afectado
-
-    # Verificar campos clínicos críticos
     if campo == 'tipo_emo' and historia.tipo_emo is not None:
         return True
     if campo == 'aptitud_laboral' and historia.aptitud_laboral is not None:
@@ -96,12 +95,41 @@ def is_covered_in_consolidated(alerta, historia: HistoriaClinicaEstructurada) ->
     if campo == 'diagnosticos' and len(historia.diagnosticos) > 0:
         return True
 
+    # También verificar por descripción (alertas que mencionan estos campos)
+    desc_lower = alerta.descripcion.lower()
+
+    # Si alerta menciona tipo_emo pero el consolidado lo tiene
+    if 'tipo_emo' in desc_lower or 'tipo de emo' in desc_lower:
+        if historia.tipo_emo is not None:
+            return True
+
+    # Si alerta menciona aptitud pero el consolidado la tiene
+    if 'aptitud' in desc_lower:
+        if historia.aptitud_laboral is not None:
+            return True
+
+    # Si alerta menciona diagnósticos pero el consolidado los tiene
+    if 'diagnostico' in desc_lower or 'diagnóstico' in desc_lower:
+        if len(historia.diagnosticos) > 0:
+            return True
+
+    # Si alerta menciona fecha_emo pero el consolidado la tiene
+    if 'fecha_emo' in desc_lower or 'fecha del emo' in desc_lower:
+        if historia.fecha_emo is not None:
+            return True
+
     return False
 
 
 def is_invalid_for_exam_especifico(alerta, historia: HistoriaClinicaEstructurada) -> bool:
     """
     Verifica si una alerta no aplica a exámenes específicos.
+
+    Exámenes específicos (laboratorio, optometría, audiometría, RX) NO requieren:
+    - tipo_emo
+    - aptitud_laboral
+    - diagnóstico principal
+    - fecha_emo (pueden tener fecha_realizacion del examen)
 
     Args:
         alerta: Objeto Alerta
@@ -114,8 +142,37 @@ def is_invalid_for_exam_especifico(alerta, historia: HistoriaClinicaEstructurada
     if historia.tipo_documento_fuente != "examen_especifico":
         return False
 
-    # Alerta de diagnóstico principal NO aplica a exámenes específicos
-    if "diagnóstico principal" in alerta.descripcion.lower():
+    # Solo filtrar alertas de dato_faltante en exámenes específicos
+    if alerta.tipo != "dato_faltante":
+        return False
+
+    desc_lower = alerta.descripcion.lower()
+
+    # Alertas que NO aplican a exámenes específicos:
+
+    # 1. Diagnóstico principal
+    if "diagnóstico principal" in desc_lower or "diagnostico principal" in desc_lower:
+        return True
+
+    # 2. Tipo de EMO (examen específico no es un EMO completo)
+    if "tipo_emo" in desc_lower or "tipo de emo" in desc_lower or "sin tipo_emo" in desc_lower:
+        return True
+
+    # 3. Aptitud laboral (solo en HC completa/CMO)
+    if "aptitud" in desc_lower and "laboral" in desc_lower:
+        return True
+    if "concepto de aptitud" in desc_lower or "sin aptitud" in desc_lower:
+        return True
+
+    # 4. Fecha EMO (examen tiene fecha_realizacion, no fecha_emo)
+    if "fecha_emo" in desc_lower or "fecha del emo" in desc_lower:
+        return True
+
+    # 5. Diagnósticos faltantes (examen específico puede no tener diagnósticos)
+    # Solo si la alerta dice "no se encontraron diagnósticos" genéricamente
+    if "no se encontraron diagnosticos" in desc_lower or "no se encontraron diagnósticos" in desc_lower:
+        return True
+    if "sin diagnosticos" in desc_lower or "sin diagnósticos" in desc_lower:
         return True
 
     return False
