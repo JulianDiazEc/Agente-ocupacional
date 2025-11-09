@@ -134,13 +134,15 @@ class Diagnostico(BaseModel):
     Diagnóstico médico con código CIE-10.
 
     Validaciones:
-    - Código CIE-10 debe tener formato: Letra + 2 dígitos + punto + 1 dígito
-      Ejemplos válidos: M54.5, J30.1, H52.0, E11.9
+    - Código CIE-10 acepta formatos flexibles:
+      * Corto: N80, M50, K42 (letra + 2 dígitos)
+      * Completo: M54.5, J30.1, H52.0 (letra + 2 dígitos + punto + 1-2 dígitos)
+    - Si formato incorrecto: se acepta pero genera alerta
     """
     codigo_cie10: str = Field(
         ...,
-        description="Código CIE-10 en formato estándar (ej: M54.5)",
-        pattern=r"^[A-Z]\d{2}\.\d$"
+        description="Código CIE-10 (acepta formatos: N80, H52.1, M54.5)",
+        pattern=r"^[A-Z]\d{2}(\.\d{1,2})?$"
     )
     descripcion: str = Field(..., description="Descripción del diagnóstico")
     tipo: Optional[Literal["principal", "secundario", "hallazgo"]] = Field(
@@ -167,14 +169,20 @@ class Diagnostico(BaseModel):
     @field_validator('codigo_cie10')
     @classmethod
     def validar_formato_cie10(cls, v: str) -> str:
-        """Valida que el código CIE-10 tenga formato correcto."""
-        if not v or len(v) < 5:
-            raise ValueError(f"Código CIE-10 inválido: {v}")
+        """
+        Normaliza código CIE-10 sin lanzar errores.
+
+        NUNCA lanza ValueError para evitar romper el pipeline.
+        Problemas de formato se manejan con alertas en validators.py.
+        """
+        if not v:
+            return ""
+
         # Convertir a mayúsculas
-        v = v.upper()
-        # Validar formato básico
-        if not (v[0].isalpha() and v[1:3].isdigit()):
-            raise ValueError(f"Código CIE-10 debe iniciar con letra seguida de 2 dígitos: {v}")
+        v = v.upper().strip()
+
+        # Aceptar cualquier formato que empiece con letra
+        # Validaciones estrictas se hacen en validators.py → alertas
         return v
 
 

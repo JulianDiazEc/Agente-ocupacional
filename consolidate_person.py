@@ -278,8 +278,8 @@ def merge_remisiones(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     for historia in historias:
         for rem in historia.get('remisiones', []):
-            especialidad = rem.get('especialidad', '').strip().lower()
-            motivo = rem.get('motivo', '').strip().lower()
+            especialidad = (rem.get('especialidad') or '').strip().lower()
+            motivo = (rem.get('motivo') or '').strip().lower()
 
             if not especialidad:
                 continue
