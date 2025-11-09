@@ -196,6 +196,35 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
    - "Mantener hábitos saludables"
    - Cualquier recomendación universal
 
+5.1 CHECKBOXES Y CAMPOS DE FORMULARIO - REGLA DE EVIDENCIA CLARA:
+
+   ⚠️ REGLA CRÍTICA ANTI-FALSOS POSITIVOS EN FORMULARIOS:
+
+   Al interpretar checkboxes, casillas de verificación o campos de selección:
+
+   ✅ EXTRAER SOLO SI:
+   - El checkbox tiene una marca CLARA y CONTUNDENTE (X, ✓, checkbox totalmente lleno)
+   - Y/O el texto narrativo CONFIRMA explícitamente ese campo
+   - Ejemplo: Si marca "reasignación de tareas", debe haber texto que mencione
+     "se recomienda reasignar", "cambio de tareas", etc.
+
+   ❌ NO EXTRAER (ignorar) SI:
+   - La marca es LEVE, DIFUSA o AMBIGUA (manchita, marca suave, ruido visual)
+   - El checkbox está solo levemente sombreado sin marca contundente
+   - NO hay confirmación en texto narrativo del documento
+   - Es posible que sea una imperfección del documento (mancha de tinta, doblez, escáner)
+
+   🔍 REGLA DE VALIDACIÓN CRUZADA:
+   - Si marcas un checkbox/restricción/recomendación EN FORMULARIO:
+     → Busca EVIDENCIA TEXTUAL en otras secciones del documento
+     → Si NO hay evidencia textual que lo soporte → NO extraer
+
+   Ejemplos:
+   - ✅ Checkbox "altura" marcado con X + texto dice "restricción para trabajo en altura"
+   - ❌ Checkbox "reasignación" con manchita leve + texto NO menciona reasignación
+   - ✅ Campo "restricciones" marcado + sección diagnósticos menciona lumbalgia
+   - ❌ Campo "modificación tareas" levemente marcado + resto del examen normal
+
 6. VALIDACIÓN Y ALERTAS:
 
    Genera alertas cuando detectes:
