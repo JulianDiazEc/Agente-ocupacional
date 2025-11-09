@@ -487,6 +487,174 @@ def clean_exam_findings(examenes: list[dict]) -> list[dict]:
     return examenes
 
 
+def validate_signos_vitales(historia_dict: dict, alertas_adicionales: list) -> dict:
+    """
+    Valida signos vitales contra rangos clínicos esperados.
+
+    Si un valor está fuera de rango esperado:
+    - Setear campo a None
+    - Agregar alerta tipo valor_critico
+
+    Rangos esperados (permisivos para cubrir casos clínicos válidos):
+    - FC: 40-200 lpm
+    - FR: 8-40 rpm
+    - Temperatura: 35.0-42.0 °C
+    - SpO2: 70-100%
+    - Peso: 20-300 kg
+    - Talla: 100-250 cm
+    - IMC: 10-60
+
+    Args:
+        historia_dict: Diccionario con la historia clínica
+        alertas_adicionales: Lista para agregar alertas generadas
+
+    Returns:
+        dict: Historia con signos vitales validados
+    """
+    if 'signos_vitales' not in historia_dict or not historia_dict['signos_vitales']:
+        return historia_dict
+
+    signos = historia_dict['signos_vitales']
+
+    # Definir rangos esperados (min, max, unidad, nombre legible)
+    validaciones = [
+        ('frecuencia_cardiaca', 40, 200, 'lpm', 'Frecuencia cardíaca'),
+        ('frecuencia_respiratoria', 8, 40, 'rpm', 'Frecuencia respiratoria'),
+        ('temperatura', 35.0, 42.0, '°C', 'Temperatura'),
+        ('saturacion_oxigeno', 70, 100, '%', 'Saturación de oxígeno'),
+        ('peso_kg', 20.0, 300.0, 'kg', 'Peso'),
+        ('talla_cm', 100.0, 250.0, 'cm', 'Talla'),
+        ('imc', 10.0, 60.0, '', 'IMC'),
+    ]
+
+    from src.config.schemas import Alerta
+
+    for campo, min_val, max_val, unidad, nombre in validaciones:
+        valor = signos.get(campo)
+
+        if valor is None:
+            continue
+
+        # Validar rango
+        try:
+            valor_num = float(valor)
+
+            if valor_num < min_val or valor_num > max_val:
+                logger.warning(
+                    f"{nombre} fuera de rango esperado: {valor_num} {unidad} "
+                    f"(esperado: {min_val}-{max_val}). Seteando a None."
+                )
+
+                # Setear a None
+                signos[campo] = None
+
+                # Agregar alerta
+                alertas_adicionales.append(
+                    Alerta(
+                        tipo="valor_critico",
+                        severidad="alta",
+                        campo_afectado=f"signos_vitales.{campo}",
+                        descripcion=f"{nombre} fuera de rango clínico esperado: {valor_num} {unidad} (esperado: {min_val}-{max_val})",
+                        accion_sugerida="Verificar valor en documento original, probable error de transcripción"
+                    )
+                )
+
+        except (ValueError, TypeError):
+            # Si no se puede convertir a número, dejarlo pasar
+            # Pydantic lo manejará
+            logger.debug(f"{nombre} no es numérico: {valor}, dejando para Pydantic")
+            continue
+
+    return historia_dict
+
+
+def normalize_aptitud_laboral(historia_dict: dict, alertas_adicionales: list) -> dict:
+    """
+    Normaliza el campo aptitud_laboral antes de validación Pydantic.
+
+    Reglas:
+    1. "aplazado" → "pendiente"
+    2. Valores fuera de catálogo → "pendiente" + alerta valor_no_estandarizado
+
+    Args:
+        historia_dict: Diccionario con la historia clínica
+        alertas_adicionales: Lista para agregar alertas generadas
+
+    Returns:
+        dict: Historia con aptitud_laboral normalizado
+    """
+    aptitud_original = historia_dict.get('aptitud_laboral')
+
+    if not aptitud_original:
+        return historia_dict
+
+    # Catálogo válido de aptitudes
+    VALID_APTITUDES = {
+        "apto",
+        "apto_sin_restricciones",
+        "apto_con_recomendaciones",
+        "apto_con_restricciones",
+        "no_apto_temporal",
+        "no_apto_definitivo",
+        "pendiente"
+    }
+
+    # Normalizar a lowercase y quitar espacios
+    aptitud_clean = str(aptitud_original).lower().strip()
+
+    # Mapeo de variantes comunes
+    APTITUD_MAPPINGS = {
+        "aplazado": "pendiente",
+        "aplazada": "pendiente",
+        "pendiente_evaluacion": "pendiente",
+        "en_evaluacion": "pendiente",
+        "por_definir": "pendiente",
+    }
+
+    # Aplicar mapeo si existe
+    if aptitud_clean in APTITUD_MAPPINGS:
+        aptitud_normalizada = APTITUD_MAPPINGS[aptitud_clean]
+        logger.info(
+            f"aptitud_laboral normalizada: '{aptitud_original}' → '{aptitud_normalizada}'"
+        )
+        historia_dict['aptitud_laboral'] = aptitud_normalizada
+
+        # Agregar alerta informativa
+        from src.config.schemas import Alerta
+        alertas_adicionales.append(
+            Alerta(
+                tipo="formato_incorrecto",
+                severidad="baja",
+                campo_afectado="aptitud_laboral",
+                descripcion=f"Aptitud laboral no estándar: '{aptitud_original}' normalizada a '{aptitud_normalizada}'",
+                accion_sugerida="Verificar valor original en documento fuente"
+            )
+        )
+        return historia_dict
+
+    # Si no está en el catálogo válido → setear "pendiente" + alerta
+    if aptitud_clean not in VALID_APTITUDES:
+        logger.warning(
+            f"aptitud_laboral fuera de catálogo: '{aptitud_original}', "
+            f"seteando a 'pendiente'"
+        )
+        historia_dict['aptitud_laboral'] = "pendiente"
+
+        # Agregar alerta de valor no estandarizado
+        from src.config.schemas import Alerta
+        alertas_adicionales.append(
+            Alerta(
+                tipo="formato_incorrecto",
+                severidad="media",
+                campo_afectado="aptitud_laboral",
+                descripcion=f"Aptitud laboral no reconocida: '{aptitud_original}'. Se estableció como 'pendiente'",
+                accion_sugerida="Revisar documento para determinar aptitud laboral correcta"
+            )
+        )
+
+    return historia_dict
+
+
 class ClaudeProcessor:
     """
     Procesador de historias clínicas usando Claude API.
@@ -670,8 +838,20 @@ class ClaudeProcessor:
             # Agregar metadata
             historia_dict["archivo_origen"] = archivo_origen
 
+            # Pre-procesamiento: Validaciones ANTES de Pydantic
+            alertas_preprocesamiento = []
+
+            # 1. Validar signos vitales con rangos esperados
+            historia_dict = validate_signos_vitales(historia_dict, alertas_preprocesamiento)
+
+            # 2. Normalizar aptitud_laboral
+            historia_dict = normalize_aptitud_laboral(historia_dict, alertas_preprocesamiento)
+
             # Validar contra schema Pydantic
             historia = HistoriaClinicaEstructurada.model_validate(historia_dict)
+
+            # Agregar alertas de pre-procesamiento
+            historia.alertas_validacion.extend(alertas_preprocesamiento)
 
             # Ejecutar validaciones adicionales
             alertas_adicionales = validate_historia_completa(historia)

@@ -324,15 +324,20 @@ class DatosEmpleado(BaseModel):
 
 
 class SignosVitales(BaseModel):
-    """Signos vitales tomados en el examen físico."""
+    """
+    Signos vitales tomados en el examen físico.
+
+    NOTA: No usa constraints de Pydantic para evitar ValidationError.
+    La validación de rangos se hace en pre-procesamiento con alertas clínicas.
+    """
     presion_arterial: Optional[str] = Field(None, description="PA en formato 120/80")
-    frecuencia_cardiaca: Optional[int] = Field(None, ge=40, le=200, description="FC en lpm")
-    frecuencia_respiratoria: Optional[int] = Field(None, ge=8, le=40, description="FR en rpm")
-    temperatura: Optional[float] = Field(None, ge=35.0, le=42.0, description="Temperatura °C")
-    saturacion_oxigeno: Optional[int] = Field(None, ge=70, le=100, description="SpO2 en %")
-    peso_kg: Optional[float] = Field(None, ge=20.0, le=300.0)
-    talla_cm: Optional[float] = Field(None, ge=100.0, le=250.0)
-    imc: Optional[float] = Field(None, ge=10.0, le=60.0, description="Índice de Masa Corporal")
+    frecuencia_cardiaca: Optional[int] = Field(None, description="FC en lpm")
+    frecuencia_respiratoria: Optional[int] = Field(None, description="FR en rpm")
+    temperatura: Optional[float] = Field(None, description="Temperatura °C")
+    saturacion_oxigeno: Optional[int] = Field(None, description="SpO2 en %")
+    peso_kg: Optional[float] = Field(None, description="Peso en kg")
+    talla_cm: Optional[float] = Field(None, description="Talla en cm")
+    imc: Optional[float] = Field(None, description="Índice de Masa Corporal")
 
 
 class Antecedente(BaseModel):
