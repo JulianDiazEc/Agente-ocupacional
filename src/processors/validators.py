@@ -5,6 +5,7 @@ Incluye validación de CIE-10, fechas, rangos de valores, etc.
 """
 
 import re
+import unicodedata
 from datetime import date
 from typing import List, Optional, Tuple
 
@@ -17,6 +18,25 @@ from src.config.schemas import (
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def normalize_text(text: str) -> str:
+    """
+    Normaliza texto: lowercase, sin tildes, sin dobles espacios.
+
+    Args:
+        text: Texto a normalizar
+
+    Returns:
+        str: Texto normalizado
+    """
+    text = text.lower().strip()
+    # Remover tildes
+    text = unicodedata.normalize('NFD', text)
+    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    # Remover dobles espacios
+    text = ' '.join(text.split())
+    return text
 
 
 class CIE10Validator:
@@ -153,18 +173,9 @@ class CIE10Validator:
                     )
                 )
 
-        # Validar que haya al menos un diagnóstico principal
-        principales = [d for d in diagnosticos if d.tipo == "principal"]
-        if not principales:
-            alertas.append(
-                Alerta(
-                    tipo="inconsistencia_diagnostica",
-                    severidad="media",
-                    campo_afectado="diagnosticos",
-                    descripcion="No se identificó ningún diagnóstico principal",
-                    accion_sugerida="Verificar cuál diagnóstico debe ser el principal"
-                )
-            )
+        # ELIMINADO: Validación de "diagnóstico principal"
+        # No existe concepto obligatorio de diagnóstico principal/secundario en este contexto
+        # (Regla 3 anti-false-positive: diagnosticos.tipo solo cuando explícito)
 
         return alertas
 
@@ -339,6 +350,371 @@ class ClinicalValueValidator:
         return alertas
 
 
+def _check_visual_consistency(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
+    """
+    Valida consistencia entre diagnósticos visuales y exámenes de optometría.
+
+    Detecta:
+    - Diagnóstico visual refractivo (H52.x: miopía, astigmatismo, hipermetropía)
+    - Examen de optometría con visión corregida/normal
+
+    Returns:
+        List[Alerta]: Alertas de inconsistencia (severidad baja)
+    """
+    alertas = []
+
+    # Códigos CIE-10 de problemas visuales refractivos
+    VISUAL_DIAGNOSIS_CODES = {
+        'H52.0': 'Hipermetropía',
+        'H52.1': 'Miopía',
+        'H52.2': 'Astigmatismo',
+        'H52.3': 'Anisometropía',
+        'H52.4': 'Presbicia'
+    }
+
+    # Buscar diagnósticos visuales
+    diagnosticos_visuales = [
+        diag for diag in historia.diagnosticos
+        if any(diag.codigo_cie10.startswith(code[:4]) for code in VISUAL_DIAGNOSIS_CODES.keys())
+    ]
+
+    logger.debug(f"Validación visual: {len(diagnosticos_visuales)} diagnósticos visuales encontrados")
+    if diagnosticos_visuales:
+        for diag in diagnosticos_visuales:
+            logger.debug(f"  - {diag.codigo_cie10}: {diag.descripcion}")
+
+    if not diagnosticos_visuales:
+        return alertas
+
+    # Buscar exámenes de optometría
+    examenes_visuales = [
+        ex for ex in historia.examenes
+        if ex.tipo == "optometria"
+    ]
+
+    logger.debug(f"Validación visual: {len(examenes_visuales)} exámenes de optometría encontrados")
+    if examenes_visuales:
+        for ex in examenes_visuales:
+            logger.debug(f"  - Resultado: {ex.resultado}")
+            logger.debug(f"  - Hallazgos: {ex.hallazgos_clave}")
+
+    if not examenes_visuales:
+        return alertas
+
+    # Detectar inconsistencias
+    for diag in diagnosticos_visuales:
+        for exam in examenes_visuales:
+            resultado = normalize_text(exam.resultado or "")
+            hallazgos = normalize_text(exam.hallazgos_clave or "")
+
+            # Indicadores de visión normal/corregida
+            indicadores_normales = [
+                "20/20", "20/25",
+                "con correccion", "corregido", "corregida",
+                "normal", "dentro de limites",
+                "vision corregida", "ojo derecho 20/20", "ojo izquierdo 20/20"
+            ]
+
+            tiene_vision_normal = any(
+                ind in resultado or ind in hallazgos
+                for ind in indicadores_normales
+            )
+
+            if tiene_vision_normal:
+                alertas.append(
+                    Alerta(
+                        tipo="inconsistencia_diagnostica",
+                        severidad="baja",
+                        campo_afectado="diagnosticos",
+                        descripcion=(
+                            f"Diagnóstico de {diag.descripcion} ({diag.codigo_cie10}) "
+                            f"pero examen de optometría indica: {exam.resultado or exam.hallazgos_clave}"
+                        ),
+                        accion_sugerida=(
+                            "Confirmar si el diagnóstico visual requiere corrección óptica actual "
+                            "o es hallazgo leve/corregido. Revisar si aplica restricción laboral."
+                        )
+                    )
+                )
+                break  # No duplicar alerta por mismo diagnóstico
+
+    return alertas
+
+
+def _check_hearing_consistency(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
+    """
+    Valida consistencia entre diagnósticos auditivos y exámenes de audiometría.
+
+    Detecta:
+    - Diagnóstico de hipoacusia/trauma acústico (H90.x, H91.x)
+    - Audiometría con audición normal
+
+    Returns:
+        List[Alerta]: Alertas de inconsistencia (severidad baja)
+    """
+    alertas = []
+
+    # Códigos CIE-10 de problemas auditivos
+    HEARING_DIAGNOSIS_CODES = {
+        'H90': 'Hipoacusia conductiva y neurosensorial',
+        'H91': 'Otras pérdidas de audición',
+        'H83.3': 'Efectos del ruido sobre el oído interno'
+    }
+
+    # Buscar diagnósticos auditivos
+    diagnosticos_auditivos = [
+        diag for diag in historia.diagnosticos
+        if any(diag.codigo_cie10.startswith(code) for code in HEARING_DIAGNOSIS_CODES.keys())
+    ]
+
+    if not diagnosticos_auditivos:
+        return alertas
+
+    # Buscar exámenes de audiometría
+    examenes_auditivos = [
+        ex for ex in historia.examenes
+        if ex.tipo == "audiometria"
+    ]
+
+    if not examenes_auditivos:
+        return alertas
+
+    # Detectar inconsistencias
+    for diag in diagnosticos_auditivos:
+        for exam in examenes_auditivos:
+            resultado = normalize_text(exam.resultado or "")
+            hallazgos = normalize_text(exam.hallazgos_clave or "")
+
+            # Indicadores de audición normal
+            indicadores_normales = [
+                "audicion normal", "auditivamente normal",
+                "bilateral normal", "dentro de limites normales",
+                "sin perdida auditiva", "sin hipoacusia",
+                "umbrales normales", "audiometria normal"
+            ]
+
+            tiene_audicion_normal = any(
+                ind in resultado or ind in hallazgos
+                for ind in indicadores_normales
+            )
+
+            if tiene_audicion_normal:
+                alertas.append(
+                    Alerta(
+                        tipo="inconsistencia_diagnostica",
+                        severidad="baja",
+                        campo_afectado="diagnosticos",
+                        descripcion=(
+                            f"Diagnóstico de {diag.descripcion} ({diag.codigo_cie10}) "
+                            f"pero audiometría indica: {exam.resultado or exam.hallazgos_clave}"
+                        ),
+                        accion_sugerida=(
+                            "Confirmar si la hipoacusia se ha resuelto, es leve sin repercusión actual, "
+                            "o si el diagnóstico requiere actualización. Revisar exposición a ruido."
+                        )
+                    )
+                )
+                break
+
+    return alertas
+
+
+def _check_respiratory_consistency(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
+    """
+    Valida consistencia entre diagnósticos respiratorios y espirometría.
+
+    Detecta:
+    - Diagnóstico de EPOC/asma/afección respiratoria (J44.x, J45.x, J68.x)
+    - Espirometría con función pulmonar normal
+
+    Returns:
+        List[Alerta]: Alertas de inconsistencia (severidad baja)
+    """
+    alertas = []
+
+    # Códigos CIE-10 de problemas respiratorios ocupacionales
+    RESPIRATORY_DIAGNOSIS_CODES = {
+        'J44': 'EPOC (Enfermedad Pulmonar Obstructiva Crónica)',
+        'J45': 'Asma',
+        'J68': 'Afecciones respiratorias por químicos, gases, humos y vapores',
+        'J60': 'Neumoconiosis de los mineros del carbón',
+        'J61': 'Neumoconiosis debida al asbesto',
+        'J62': 'Neumoconiosis debida a polvo de sílice'
+    }
+
+    # Buscar diagnósticos respiratorios
+    diagnosticos_respiratorios = [
+        diag for diag in historia.diagnosticos
+        if any(diag.codigo_cie10.startswith(code) for code in RESPIRATORY_DIAGNOSIS_CODES.keys())
+    ]
+
+    if not diagnosticos_respiratorios:
+        return alertas
+
+    # Buscar exámenes de espirometría
+    examenes_respiratorios = [
+        ex for ex in historia.examenes
+        if ex.tipo == "espirometria"
+    ]
+
+    if not examenes_respiratorios:
+        return alertas
+
+    # Detectar inconsistencias
+    for diag in diagnosticos_respiratorios:
+        for exam in examenes_respiratorios:
+            resultado = normalize_text(exam.resultado or "")
+            hallazgos = normalize_text(exam.hallazgos_clave or "")
+
+            # Indicadores de función pulmonar normal
+            indicadores_normales = [
+                "funcion pulmonar normal", "funcion respiratoria normal",
+                "espirometria normal", "patron normal",
+                "sin obstruccion", "sin restriccion",
+                "fev1 normal", "fvc normal",
+                "dentro de limites normales", "parametros normales"
+            ]
+
+            tiene_funcion_normal = any(
+                ind in resultado or ind in hallazgos
+                for ind in indicadores_normales
+            )
+
+            if tiene_funcion_normal:
+                alertas.append(
+                    Alerta(
+                        tipo="inconsistencia_diagnostica",
+                        severidad="baja",
+                        campo_afectado="diagnosticos",
+                        descripcion=(
+                            f"Diagnóstico de {diag.descripcion} ({diag.codigo_cie10}) "
+                            f"pero espirometría indica: {exam.resultado or exam.hallazgos_clave}"
+                        ),
+                        accion_sugerida=(
+                            "Confirmar si la condición respiratoria está controlada, es leve, "
+                            "o si el diagnóstico requiere actualización. Revisar exposición a irritantes."
+                        )
+                    )
+                )
+                break
+
+    return alertas
+
+
+def validate_diagnosis_exam_consistency(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
+    """
+    Valida consistencia entre diagnósticos y exámenes paraclínicos objetivos.
+
+    Esta función se llama SOLO desde consolidate_person.py sobre el consolidado final.
+
+    Detecta inconsistencias en:
+    1. Diagnósticos visuales (H52.x) vs optometría
+    2. Diagnósticos auditivos (H90.x, H91.x) vs audiometría
+    3. Diagnósticos respiratorios (J44.x, J45.x, J68.x) vs espirometría
+
+    NO valida:
+    - Metabólicos (pueden estar controlados con medicación)
+    - Cardiovasculares (mismo motivo)
+    - Osteomusculares (dolor sin hallazgo objetivo es válido)
+
+    Args:
+        historia: Historia clínica consolidada
+
+    Returns:
+        List[Alerta]: Alertas de inconsistencia (severidad baja)
+    """
+    alertas = []
+
+    logger.info(
+        f"Ejecutando validación cruzada diagnóstico↔examen. "
+        f"Diagnósticos: {len(historia.diagnosticos)}, Exámenes: {len(historia.examenes)}"
+    )
+
+    # Validaciones modulares
+    alertas.extend(_check_visual_consistency(historia))
+    alertas.extend(_check_hearing_consistency(historia))
+    alertas.extend(_check_respiratory_consistency(historia))
+
+    if alertas:
+        logger.info(
+            f"Validación cruzada diagnóstico↔examen: {len(alertas)} inconsistencias detectadas"
+        )
+    else:
+        logger.info(
+            f"Validación cruzada diagnóstico↔examen: Sin inconsistencias detectadas"
+        )
+
+    return alertas
+
+
+def validate_examenes_criticos_sin_reflejo(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
+    """
+    Valida que exámenes críticos/alterados tengan reflejo en diagnósticos/recomendaciones/restricciones.
+
+    Un hallazgo crítico debe tener eco en:
+    - diagnosticos, O
+    - recomendaciones, O
+    - restricciones_especificas
+
+    Si no tiene reflejo → inconsistencia_diagnostica severidad baja.
+
+    Esta función se llama SOLO desde consolidate_person.py sobre el consolidado final.
+
+    Args:
+        historia: Historia clínica consolidada
+
+    Returns:
+        List[Alerta]: Alertas de inconsistencia
+    """
+    alertas = []
+
+    # Buscar exámenes con interpretacion critico/alterado
+    examenes_criticos = [
+        ex for ex in historia.examenes
+        if ex.interpretacion and ex.interpretacion.lower() in ['critico', 'alterado']
+    ]
+
+    for exam in examenes_criticos:
+        tipo = exam.tipo or ''
+        hallazgos = exam.hallazgos_clave or ''
+
+        # Verificar si hay reflejo en diagnósticos
+        tiene_diagnostico = any(
+            tipo.lower() in (diag.descripcion or '').lower()
+            for diag in historia.diagnosticos
+        )
+
+        # Verificar si hay reflejo en recomendaciones
+        tiene_recomendacion = any(
+            tipo.lower() in (rec.descripcion or '').lower()
+            for rec in historia.recomendaciones
+        )
+
+        # Verificar si hay reflejo en restricciones
+        restricciones = historia.restricciones_especificas or ''
+        tiene_restriccion = tipo.lower() in restricciones.lower()
+
+        # Si no tiene reflejo en ningún lado, alerta
+        if not (tiene_diagnostico or tiene_recomendacion or tiene_restriccion):
+            alertas.append(
+                Alerta(
+                    tipo="inconsistencia_diagnostica",
+                    severidad="baja",
+                    campo_afectado="examenes",
+                    descripcion=(
+                        f"Examen {exam.interpretacion} de {tipo} con hallazgo '{hallazgos[:80]}' "
+                        f"sin reflejo en diagnósticos, recomendaciones o restricciones"
+                    ),
+                    accion_sugerida=(
+                        "Verificar si el hallazgo requiere diagnóstico CIE-10, "
+                        "recomendación médica o restricción laboral específica"
+                    )
+                )
+            )
+
+    return alertas
+
+
 def validate_historia_completa(historia: HistoriaClinicaEstructurada) -> List[Alerta]:
     """
     Ejecuta todas las validaciones sobre una historia clínica.
@@ -421,5 +797,7 @@ __all__ = [
     "CIE10Validator",
     "DateValidator",
     "ClinicalValueValidator",
-    "validate_historia_completa"
+    "validate_historia_completa",
+    "validate_diagnosis_exam_consistency",
+    "validate_examenes_criticos_sin_reflejo"
 ]

@@ -21,6 +21,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+# Imports para validaciones del consolidado
+from src.config.schemas import HistoriaClinicaEstructurada
+from src.processors.validators import validate_historia_completa
+from src.processors.alert_filters import filter_alerts
+
 console = Console()
 
 
@@ -99,9 +104,71 @@ def merge_antecedentes(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return list(antecedentes_dict.values())
 
 
+def _es_examen_relevante(exam: Dict[str, Any]) -> bool:
+    """
+    Determina si un examen debe incluirse en el consolidado.
+
+    INCLUIR si cumple al menos uno:
+    - interpretacion ∈ {"alterado", "critico", "patologico"}
+    - hallazgos_clave NO vacío
+    - resultado NO vacío
+    - No tiene interpretacion pero tiene texto no trivial
+
+    EXCLUIR solo cuando TODO:
+    - interpretacion == "normal"
+    - Y hallazgos_clave vacío o claramente "normal"
+    - Y resultado vacío o claramente "normal"
+
+    Args:
+        exam: Diccionario del examen
+
+    Returns:
+        True si debe incluirse, False si excluir
+    """
+    interpretacion = (exam.get('interpretacion', '') or '').lower().strip()
+    hallazgos = (exam.get('hallazgos_clave', '') or '').strip()
+    resultado = (exam.get('resultado', '') or '').strip()
+
+    # INCLUIR: interpretacion alterada/crítica/patológica
+    if interpretacion in ['alterado', 'critico', 'patologico', 'anormal']:
+        return True
+
+    # INCLUIR: tiene hallazgos_clave no vacío
+    if hallazgos and hallazgos.lower() not in ['normal', 'sin hallazgos', 'sin alteraciones']:
+        return True
+
+    # INCLUIR: tiene resultado no vacío
+    if resultado and resultado.lower() not in ['normal', 'sin alteraciones']:
+        return True
+
+    # INCLUIR: no tiene interpretacion pero tiene texto no trivial
+    if not interpretacion and (hallazgos or resultado):
+        return True
+
+    # EXCLUIR: solo si interpretacion=="normal" Y hallazgos/resultado vacíos o "normal"
+    if interpretacion == 'normal':
+        hallazgos_vacio_o_normal = (
+            not hallazgos or
+            hallazgos.lower() in ['normal', 'sin hallazgos', 'sin alteraciones', 'dentro de limites normales']
+        )
+        resultado_vacio_o_normal = (
+            not resultado or
+            resultado.lower() in ['normal', 'sin alteraciones', 'dentro de limites normales']
+        )
+
+        if hallazgos_vacio_o_normal and resultado_vacio_o_normal:
+            return False  # Excluir
+
+    # Default: incluir (conservador)
+    return True
+
+
 def merge_examenes(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Merge inteligente de exámenes evitando duplicados.
+
+    SOLO incluye exámenes con hallazgos anormales o clínicamente relevantes.
+    Excluye exámenes normales sin hallazgos.
 
     Consolida por tipo + fecha. Mantiene orden cronológico.
     """
@@ -113,6 +180,10 @@ def merge_examenes(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             fecha = exam.get('fecha_realizacion', '')
 
             if not tipo:
+                continue
+
+            # Filtrar: solo incluir exámenes relevantes
+            if not _es_examen_relevante(exam):
                 continue
 
             # Clave única: tipo + fecha
@@ -228,29 +299,6 @@ def merge_remisiones(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return list(remisiones_dict.values())
 
 
-def merge_alertas(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Merge de alertas de validación evitando duplicados.
-
-    Consolida por tipo + campo_afectado + descripción.
-    """
-    alertas_dict = {}
-
-    for historia in historias:
-        for alerta in historia.get('alertas_validacion', []):
-            tipo = alerta.get('tipo', '')
-            campo = alerta.get('campo_afectado', '')
-            desc = alerta.get('descripcion', '').strip().lower()
-
-            key = f"{tipo}:{campo}:{desc}"
-
-            # Si no existe, agregar (mantiene primera ocurrencia)
-            if key not in alertas_dict:
-                alertas_dict[key] = alerta
-
-    return list(alertas_dict.values())
-
-
 def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Consolida múltiples historias clínicas en una sola.
@@ -273,8 +321,6 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
     # Usar HC completa como base si existe, sino la primera
     if hcs_completas:
         consolidada = hcs_completas[0].copy()
-        # Tipo documento del consolidado
-        consolidada['tipo_documento_fuente'] = 'hc_completa'
     else:
         consolidada = historias[0].copy()
 
@@ -343,7 +389,10 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
     consolidada['incapacidades'] = merge_incapacidades(historias)
     consolidada['recomendaciones'] = merge_recomendaciones(historias)
     consolidada['remisiones'] = merge_remisiones(historias)
-    consolidada['alertas_validacion'] = merge_alertas(historias)
+
+    # IMPORTANTE: NO heredar alertas de documentos individuales
+    # Las alertas se generarán solo sobre el consolidado final
+    consolidada['alertas_validacion'] = []
 
     # Aptitud laboral - PRIORIZAR HC COMPLETA/CMO (no exámenes específicos)
     aptitud_encontrada = False
@@ -390,6 +439,64 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
     # Agregar nota de procesamiento
     nota = f"Consolidado de {len(historias)} documentos: {', '.join([Path(h.get('archivo_origen', '')).stem for h in historias])}"
     consolidada['notas_procesamiento'] = nota
+
+    # VALIDACIONES DEL CONSOLIDADO FINAL
+    # Solo aquí se ejecutan validaciones de completitud y consistencia
+    # NO se heredan alertas de documentos individuales
+    try:
+        # Setear tipo de documento como consolidado
+        consolidada['tipo_documento_fuente'] = 'consolidado'
+
+        # PRE-PROCESAMIENTO del consolidado
+        # Limpiar y validar datos ANTES de Pydantic
+        from src.processors.claude_processor import validate_signos_vitales, normalize_aptitud_laboral
+        alertas_preprocesamiento = []
+
+        # 1. Validar y limpiar signos vitales
+        consolidada = validate_signos_vitales(consolidada, alertas_preprocesamiento)
+
+        # 2. Normalizar aptitud_laboral
+        consolidada = normalize_aptitud_laboral(consolidada, alertas_preprocesamiento)
+
+        # Convertir a objeto Pydantic para validar
+        historia_obj = HistoriaClinicaEstructurada.model_validate(consolidada)
+
+        # VALIDACIONES CLÍNICAS (solo en consolidado)
+        # 1. Validaciones de completitud
+        alertas_validacion = validate_historia_completa(historia_obj)
+
+        # 2. Validación cruzada diagnóstico↔examen
+        from src.processors.validators import validate_diagnosis_exam_consistency, validate_examenes_criticos_sin_reflejo
+        alertas_cruzadas = validate_diagnosis_exam_consistency(historia_obj)
+        alertas_validacion.extend(alertas_cruzadas)
+
+        # 3. Validar que exámenes críticos/alterados tengan reflejo
+        alertas_hallazgos = validate_examenes_criticos_sin_reflejo(historia_obj)
+        alertas_validacion.extend(alertas_hallazgos)
+
+        # 4. Agregar alertas de pre-procesamiento
+        alertas_validacion.extend(alertas_preprocesamiento)
+
+        # 5. Filtrar con lista blanca clínica
+        alertas_filtradas = filter_alerts(alertas_validacion, historia_obj)
+
+        # Actualizar alertas en el dict
+        consolidada['alertas_validacion'] = [
+            {
+                'tipo': alerta.tipo,
+                'severidad': alerta.severidad,
+                'campo_afectado': alerta.campo_afectado,
+                'descripcion': alerta.descripcion,
+                'accion_sugerida': alerta.accion_sugerida
+            }
+            for alerta in alertas_filtradas
+        ]
+
+        console.print(f"   ✅ Validaciones ejecutadas: {len(alertas_filtradas)} alertas clínicas")
+
+    except Exception as e:
+        console.print(f"   [yellow]⚠️ Error en validaciones: {e}[/yellow]")
+        # Si falla validación, dejar alertas vacías (ya están en [])
 
     return consolidada
 

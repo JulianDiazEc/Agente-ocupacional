@@ -71,7 +71,7 @@ SI tipo_documento_fuente = "examen_especifico":
 
   ❌ NO GENERAR ALERTAS POR:
      - Falta de signos vitales
-     - Falta de datos demográficos completos (edad, sexo, EPS, ARL)
+     - Falta de datos demográficos completos (edad, sexo)
      - Falta de tipo_emo explícito
      - Falta de aptitud laboral
 
@@ -438,7 +438,7 @@ SI tipo_documento_fuente = "examen_especifico":
 
   ❌ NO GENERAR ALERTAS POR:
      - Falta de signos vitales
-     - Falta de datos demográficos completos (edad, sexo, EPS, ARL)
+     - Falta de datos demográficos completos (edad, sexo)
      - Falta de tipo_emo explícito
      - Falta de aptitud laboral
 
