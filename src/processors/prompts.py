@@ -616,6 +616,30 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
    - Recomendaciones de seguimiento médico/controles: tipo "seguimiento", NO "restriccion_laboral"
    - Remisiones a especialistas: tipo "remision_especialista", NO "restriccion_laboral"
 
+   🚫 IMPORTANTE - EVITAR DUPLICADOS:
+   - NO generes recomendaciones duplicadas o muy similares entre sí
+   - NO generes remisiones duplicadas a la misma especialidad con motivos similares
+   - Si encuentras múltiples menciones del mismo seguimiento/control, consolida en UNA sola entrada
+   - Si una misma especialidad requiere seguimiento múltiple, unifica en UNA sola remisión con el motivo más completo
+
+   ❌ EJEMPLO INCORRECTO (duplicados):
+      recomendaciones: [
+         {"tipo": "seguimiento", "descripcion": "Seguimiento en optometría de su EPS"},
+         {"tipo": "seguimiento", "descripcion": "Seguimiento en optometría por EPS"}
+      ]
+      remisiones: [
+         {"especialidad": "Optometría", "motivo": "Seguimiento de astigmatismo leve no corregido"},
+         {"especialidad": "Optometría", "motivo": "Seguimiento por astigmatismo leve"}
+      ]
+
+   ✅ EJEMPLO CORRECTO (consolidado):
+      recomendaciones: [
+         {"tipo": "seguimiento", "descripcion": "Seguimiento en optometría por EPS"}
+      ]
+      remisiones: [
+         {"especialidad": "Optometría", "motivo": "Seguimiento de astigmatismo leve no corregido"}
+      ]
+
 6. RESTRICCIONES LABORALES (campo restricciones_especificas):
 
    ⚠️ DISTINCIÓN CRÍTICA - Restricción vs Recomendación:

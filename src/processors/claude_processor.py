@@ -117,9 +117,122 @@ def normalize_text_for_comparison(text: str) -> str:
     return text
 
 
+def deduplicate_deterministic(items: list[dict], key: str, item_type: str = "items") -> list[dict]:
+    """
+    Elimina duplicados exactos basándose en normalización de texto.
+
+    Esta es la PRIMERA capa de deduplicación: solo elimina duplicados exactos
+    después de normalizar (lowercase, sin tildes, sin espacios dobles).
+
+    Args:
+        items: Lista de items (recomendaciones, remisiones, etc.)
+        key: Clave del diccionario a comparar (ej: 'descripcion', 'motivo')
+        item_type: Tipo de item para logging (ej: 'recomendaciones', 'remisiones')
+
+    Returns:
+        list[dict]: Items sin duplicados exactos
+    """
+    if not items:
+        return []
+
+    seen_texts = set()
+    deduplicated = []
+
+    for item in items:
+        text = item.get(key, '')
+        if not text:
+            continue
+
+        text_normalized = normalize_text_for_comparison(text)
+
+        if text_normalized not in seen_texts:
+            seen_texts.add(text_normalized)
+            deduplicated.append(item)
+        else:
+            logger.debug(f"{item_type.capitalize()} duplicado exacto eliminado: '{text}'")
+
+    if len(deduplicated) < len(items):
+        logger.debug(
+            f"Deduplicación determinística de {item_type}: {len(items)} → {len(deduplicated)}"
+        )
+
+    return deduplicated
+
+
+def deduplicate_by_similarity(
+    items: list[dict],
+    key: str,
+    threshold: float = 0.92,
+    item_type: str = "items"
+) -> list[dict]:
+    """
+    Elimina duplicados usando similitud fuzzy (segunda capa de deduplicación).
+
+    Esta función detecta duplicados "casi iguales" que el determinístico no detecta.
+    Ejemplo:
+    - "Seguimiento en optometría de su EPS"
+    - "Seguimiento en optometría por EPS"
+    → Similitud ~92% → Se considera duplicado
+
+    IMPORTANTE: Aplicar DESPUÉS de deduplicate_deterministic para máxima eficiencia.
+
+    Args:
+        items: Lista de items ya deduplicados determinísticamente
+        key: Clave del diccionario a comparar
+        threshold: Umbral de similitud (0.0-1.0). Default 0.92 = 92% similitud mínima
+        item_type: Tipo de item para logging
+
+    Returns:
+        list[dict]: Items sin duplicados fuzzy
+    """
+    from difflib import SequenceMatcher
+
+    if not items:
+        return []
+
+    deduplicated = []
+
+    for item in items:
+        text = item.get(key, '')
+        if not text:
+            continue
+
+        text_normalized = normalize_text_for_comparison(text)
+
+        # Comparar con items ya agregados
+        is_duplicate = False
+        for existing in deduplicated:
+            existing_text = existing.get(key, '')
+            existing_normalized = normalize_text_for_comparison(existing_text)
+
+            # Calcular similitud
+            similarity = SequenceMatcher(None, text_normalized, existing_normalized).ratio()
+
+            if similarity >= threshold:
+                is_duplicate = True
+                logger.debug(
+                    f"{item_type.capitalize()} duplicado fuzzy detectado ({similarity:.1%} similitud): "
+                    f"'{text[:60]}...' ≈ '{existing_text[:60]}...'"
+                )
+                break
+
+        if not is_duplicate:
+            deduplicated.append(item)
+
+    if len(deduplicated) < len(items):
+        logger.info(
+            f"Deduplicación fuzzy de {item_type}: {len(items)} → {len(deduplicated)} "
+            f"({len(items) - len(deduplicated)} duplicados similares eliminados)"
+        )
+
+    return deduplicated
+
+
 def deduplicate_recommendations(recomendaciones: list[dict]) -> list[dict]:
     """
-    Elimina recomendaciones duplicadas basándose en descripción normalizada.
+    Elimina recomendaciones duplicadas usando estrategia de dos capas:
+    1. Deduplicación determinística (duplicados exactos)
+    2. Deduplicación fuzzy (duplicados similares al 92%+)
 
     Args:
         recomendaciones: Lista de recomendaciones
@@ -130,26 +243,56 @@ def deduplicate_recommendations(recomendaciones: list[dict]) -> list[dict]:
     if not recomendaciones:
         return []
 
-    seen_descriptions = set()
-    deduplicated = []
+    # Capa 1: Duplicados exactos
+    deduplicated = deduplicate_deterministic(
+        recomendaciones,
+        key='descripcion',
+        item_type='recomendaciones'
+    )
 
-    for rec in recomendaciones:
-        descripcion = rec.get('descripcion', '')
-        if not descripcion:
-            continue
+    # Capa 2: Duplicados similares (fuzzy)
+    deduplicated = deduplicate_by_similarity(
+        deduplicated,
+        key='descripcion',
+        threshold=0.92,
+        item_type='recomendaciones'
+    )
 
-        desc_normalized = normalize_text_for_comparison(descripcion)
+    return deduplicated
 
-        if desc_normalized not in seen_descriptions:
-            seen_descriptions.add(desc_normalized)
-            deduplicated.append(rec)
-        else:
-            logger.debug(f"Recomendación duplicada eliminada: '{descripcion}'")
 
-    if len(deduplicated) < len(recomendaciones):
-        logger.debug(
-            f"Deduplicación de recomendaciones: {len(recomendaciones)} → {len(deduplicated)}"
-        )
+def deduplicate_remisiones(remisiones: list[dict]) -> list[dict]:
+    """
+    Elimina remisiones duplicadas usando estrategia de dos capas:
+    1. Deduplicación determinística (duplicados exactos)
+    2. Deduplicación fuzzy (duplicados similares al 90%+)
+
+    Para remisiones usamos umbral más permisivo (90% vs 92%) porque
+    los motivos pueden tener más variación legítima.
+
+    Args:
+        remisiones: Lista de remisiones
+
+    Returns:
+        list[dict]: Remisiones sin duplicados
+    """
+    if not remisiones:
+        return []
+
+    # Capa 1: Duplicados exactos por motivo
+    deduplicated = deduplicate_deterministic(
+        remisiones,
+        key='motivo',
+        item_type='remisiones'
+    )
+
+    # Capa 2: Duplicados similares (fuzzy) - umbral más permisivo
+    deduplicated = deduplicate_by_similarity(
+        deduplicated,
+        key='motivo',
+        threshold=0.90,
+        item_type='remisiones'
+    )
 
     return deduplicated
 
@@ -914,9 +1057,15 @@ class ClaudeProcessor:
                     historia_dict['recomendaciones'],
                     historia_dict
                 )
-                # Deduplicar después de filtrar genéricas
+                # Deduplicar después de filtrar genéricas (determinístico + fuzzy)
                 historia_dict['recomendaciones'] = deduplicate_recommendations(
                     historia_dict['recomendaciones']
+                )
+
+            # Postprocesamiento: Deduplicar remisiones (determinístico + fuzzy)
+            if 'remisiones' in historia_dict and historia_dict['remisiones']:
+                historia_dict['remisiones'] = deduplicate_remisiones(
+                    historia_dict['remisiones']
                 )
 
             # Postprocesamiento: Reclasificar EPP mal ubicado en restricciones
