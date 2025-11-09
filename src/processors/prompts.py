@@ -209,10 +209,35 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
       Ejemplo: Ver "REASIGNACION DE TAREAS" en el PDF NO significa que esté marcado.
 
    ✅ EXTRAER SOLO SI CUMPLE AMBAS:
-   1. El checkbox tiene marca CONTUNDENTE (X grande, ✓ clara, checkbox negro/lleno completo)
+   1. El checkbox tiene marca CONTUNDENTE con caracteres VÁLIDOS:
+
+      ✓ MARCAS VÁLIDAS (solo estas):
+         - X (mayúscula)
+         - x (minúscula)
+         - ✓ (símbolo check)
+         - ☑ (checkbox lleno)
+
+      ✗ NO SON MARCAS (ignorar estos caracteres):
+         - ' (apóstrofe, comilla simple)
+         - ` (acento grave)
+         - . (punto)
+         - , (coma)
+         - - (guion)
+         - · (punto medio)
+         - | (barra vertical)
+         - Cualquier otro símbolo que NO sea X/x/✓/☑
+
+      Ejemplos de texto extraído por Azure OCR:
+      ✅ "X USO DE EPP"              → Checkbox MARCADO (X mayúscula válida)
+      ✅ "x CONTROL DE PESO"         → Checkbox MARCADO (x minúscula válida)
+      ❌ "' REASIGNACION DE TAREAS"  → Checkbox NO marcado (apóstrofe = ruido escáner)
+      ❌ ". MODIFICACION HORARIO"    → Checkbox NO marcado (punto = artefacto OCR)
+      ❌ "- CAMBIO DE PUESTO"        → Checkbox NO marcado (guion no es marca válida)
+      ❌ "DEJAR DE FUMAR"            → Checkbox NO marcado (sin marca al inicio)
+
       Y
    2. Hay CONFIRMACIÓN TEXTUAL en secciones narrativas del documento
-      (recomendaciones, conclusiones, observaciones, notas del médico)
+      (recomendaciones específicas, conclusiones, observaciones, notas del médico)
 
    ❌ NO EXTRAER (ignorar completamente) SI:
    - Solo ves el NOMBRE del campo sin marca obvia (ej: "REASIGNACION DE TAREAS" solo)
@@ -232,10 +257,11 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
    - ✅ Campo "peso" marcado + observaciones dicen "Evitar cargas mayores a 10kg por lumbalgia"
 
    Ejemplos INCORRECTOS (NO extraer):
-   - ❌ "REASIGNACION DE TAREAS" aparece solo, sin X clara, sin texto que lo mencione
-   - ❌ Checkbox "modificación tareas" con punto/simbolito, resto del examen normal
-   - ❌ Campo pre-impreso "restricciones especiales" sin marca + sin texto narrativo
-   - ❌ Lista de checkboxes del formulario que están en blanco o con marcas ambiguas
+   - ❌ "' REASIGNACION DE TAREAS" → Apóstrofe NO es X, ignorar completamente
+   - ❌ ". MODIFICACION HORARIO" → Punto no es marca válida, omitir
+   - ❌ "DEJAR DE FUMAR" → Sin marca al inicio, checkbox en blanco
+   - ❌ "REDUCIR CONSUMO DE ALCOHOL" → Sin marca, checkbox no seleccionado
+   - ❌ Cualquier campo con símbolos que NO sean X/x/✓/☑ al inicio
 
    REGLA DE ORO: Si tienes DUDA sobre si un checkbox está marcado → NO extraer.
                  Mejor omitir una restricción dudosa que crear un falso positivo.
