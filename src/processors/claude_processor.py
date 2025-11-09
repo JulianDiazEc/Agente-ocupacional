@@ -850,20 +850,35 @@ class ClaudeProcessor:
             # Validar contra schema Pydantic
             historia = HistoriaClinicaEstructurada.model_validate(historia_dict)
 
-            # Agregar alertas de pre-procesamiento
+            # Agregar alertas de pre-procesamiento (vitales, aptitud)
             historia.alertas_validacion.extend(alertas_preprocesamiento)
 
-            # Ejecutar validaciones adicionales
-            alertas_adicionales = validate_historia_completa(historia)
+            # RESTRICCIÓN POR TIPO DE DOCUMENTO:
+            # Solo ejecutar validaciones adicionales si es HC/CMO/consolidado
+            # Exámenes específicos (audiometría, RX, labs, etc.) NO generan dato_faltante
+            if historia.tipo_documento_fuente in ["hc_completa", "cmo", "consolidado"]:
+                # Ejecutar validaciones adicionales (dato_faltante, evaluacion_incompleta, etc.)
+                alertas_adicionales = validate_historia_completa(historia)
+                historia.alertas_validacion.extend(alertas_adicionales)
 
-            # Agregar alertas de validación
-            historia.alertas_validacion.extend(alertas_adicionales)
+                # Filtrar alertas con lista blanca clínica
+                historia.alertas_validacion = filter_alerts(
+                    historia.alertas_validacion,
+                    historia
+                )
 
-            # Filtrar alertas innecesarias/ruido (NUEVO filtro centralizado)
-            historia.alertas_validacion = filter_alerts(
-                historia.alertas_validacion,
-                historia
-            )
+                logger.debug(
+                    f"Documento tipo '{historia.tipo_documento_fuente}': "
+                    f"ejecutadas validaciones completas + filtrado"
+                )
+            else:
+                # Examen específico: NO validar completitud
+                # Solo conservar alertas críticas de pre-procesamiento (vitales fuera de rango, aptitud no estándar)
+                logger.info(
+                    f"Documento tipo '{historia.tipo_documento_fuente}': "
+                    f"omitiendo validaciones de completitud (solo aplican a HC/CMO/consolidado). "
+                    f"Alertas: {len(historia.alertas_validacion)} (solo pre-procesamiento)"
+                )
 
             # Calcular confianza si no fue calculada
             if historia.confianza_extraccion == 0.0:

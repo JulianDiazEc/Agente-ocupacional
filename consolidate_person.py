@@ -21,6 +21,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+# Imports para validaciones del consolidado
+from src.config.schemas import HistoriaClinicaEstructurada
+from src.processors.validators import validate_historia_completa
+from src.processors.alert_filters import filter_alerts
+
 console = Console()
 
 
@@ -230,25 +235,15 @@ def merge_remisiones(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def merge_alertas(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Merge de alertas de validación evitando duplicados.
+    [DEPRECATED] Ya no se usa - Las alertas se generan solo sobre el consolidado final.
 
-    Consolida por tipo + campo_afectado + descripción.
+    Anteriormente hacía merge de alertas de documentos individuales,
+    pero esto generaba ruido (alertas de exámenes específicos que no aplican).
+
+    Ahora las alertas se ejecutan SOLO sobre el consolidado final con lista blanca clínica.
     """
-    alertas_dict = {}
-
-    for historia in historias:
-        for alerta in historia.get('alertas_validacion', []):
-            tipo = alerta.get('tipo', '')
-            campo = alerta.get('campo_afectado', '')
-            desc = alerta.get('descripcion', '').strip().lower()
-
-            key = f"{tipo}:{campo}:{desc}"
-
-            # Si no existe, agregar (mantiene primera ocurrencia)
-            if key not in alertas_dict:
-                alertas_dict[key] = alerta
-
-    return list(alertas_dict.values())
+    # Esta función ya no se llama, pero se mantiene por compatibilidad
+    return []
 
 
 def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -343,7 +338,10 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
     consolidada['incapacidades'] = merge_incapacidades(historias)
     consolidada['recomendaciones'] = merge_recomendaciones(historias)
     consolidada['remisiones'] = merge_remisiones(historias)
-    consolidada['alertas_validacion'] = merge_alertas(historias)
+
+    # IMPORTANTE: NO heredar alertas de documentos individuales
+    # Las alertas se generarán solo sobre el consolidado final
+    consolidada['alertas_validacion'] = []
 
     # Aptitud laboral - PRIORIZAR HC COMPLETA/CMO (no exámenes específicos)
     aptitud_encontrada = False
@@ -390,6 +388,40 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
     # Agregar nota de procesamiento
     nota = f"Consolidado de {len(historias)} documentos: {', '.join([Path(h.get('archivo_origen', '')).stem for h in historias])}"
     consolidada['notas_procesamiento'] = nota
+
+    # VALIDACIONES DEL CONSOLIDADO FINAL
+    # Solo aquí se ejecutan validaciones de completitud y consistencia
+    # NO se heredan alertas de documentos individuales
+    try:
+        # Setear tipo de documento como consolidado
+        consolidada['tipo_documento_fuente'] = 'consolidado'
+
+        # Convertir a objeto Pydantic para validar
+        historia_obj = HistoriaClinicaEstructurada.model_validate(consolidada)
+
+        # Ejecutar validaciones de completitud
+        alertas_validacion = validate_historia_completa(historia_obj)
+
+        # Filtrar con lista blanca clínica
+        alertas_filtradas = filter_alerts(alertas_validacion, historia_obj)
+
+        # Actualizar alertas en el dict
+        consolidada['alertas_validacion'] = [
+            {
+                'tipo': alerta.tipo,
+                'severidad': alerta.severidad,
+                'campo_afectado': alerta.campo_afectado,
+                'descripcion': alerta.descripcion,
+                'accion_sugerida': alerta.accion_sugerida
+            }
+            for alerta in alertas_filtradas
+        ]
+
+        console.print(f"   ✅ Validaciones ejecutadas: {len(alertas_filtradas)} alertas clínicas")
+
+    except Exception as e:
+        console.print(f"   [yellow]⚠️ Error en validaciones: {e}[/yellow]")
+        # Si falla validación, dejar alertas vacías (ya están en [])
 
     return consolidada
 
