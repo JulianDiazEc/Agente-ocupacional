@@ -12,6 +12,7 @@ Uso:
 """
 
 import json
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -231,6 +232,83 @@ def merge_incapacidades(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]
     return incapacidades_list
 
 
+GENERIC_RECOMMENDATION_PATTERNS = [
+    "dejar de fumar",
+    "reducir consumo de alcohol",
+    "reducir el consumo de alcohol",
+    "evitar consumo de alcohol",
+    "seguir con el tratamiento",
+    "continuar con su tratamiento",
+    "seguir indicaciones medicas",
+    "seguir indicaciones médicas",
+    "mantener habitos saludables",
+    "mantener hábitos saludables",
+    "mantener estilo de vida saludable",
+    "adoptar y mantener habitos nutricionales saludables",
+    "continuar con habitos saludables",
+    "adoptar habitos saludables",
+    "realizar pausas activas",
+    "ejercicio fisico regularmente",
+    "realizar ejercicio fisico",
+    "actividad fisica",
+    "actividad física",
+    "control de peso",
+    "control del peso",
+    "remision a eps",
+    "remisión a eps",
+]
+
+
+def _normalize_for_match(text: str) -> str:
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFD", text.lower())
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    return " ".join(text.split())
+
+
+ACTION_VERBS = [
+    "remitir",
+    "incluir",
+    "reasign",
+    "suspender",
+    "control",
+    "realizar",
+    "iniciar",
+    "ajustar",
+    "restringir",
+    "cambiar",
+]
+
+
+def has_action_verb(description: str) -> bool:
+    normalized = _normalize_for_match(description)
+    return any(verb in normalized for verb in ACTION_VERBS)
+
+
+def looks_like_label(description: str) -> bool:
+    if not description:
+        return True
+    stripped = description.strip()
+    if len(stripped) <= 30 and stripped.isupper():
+        return True
+    return False
+
+
+def is_generic_recommendation(description: str) -> bool:
+    normalized = _normalize_for_match(description)
+    if not normalized:
+        return True
+
+    if any(pattern in normalized for pattern in GENERIC_RECOMMENDATION_PATTERNS):
+        return True
+
+    if looks_like_label(description) and not has_action_verb(description):
+        return True
+
+    return False
+
+
 def merge_recomendaciones(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Merge inteligente de recomendaciones evitando duplicados.
@@ -242,12 +320,18 @@ def merge_recomendaciones(historias: List[Dict[str, Any]]) -> List[Dict[str, Any
     for historia in historias:
         for rec in historia.get('recomendaciones', []):
             tipo = rec.get('tipo', '')
-            descripcion = rec.get('descripcion', '').strip().lower()
+            descripcion_original = (rec.get('descripcion') or '').strip()
 
-            if not descripcion:
+            if not descripcion_original:
                 continue
 
-            key = f"{tipo}:{descripcion}"
+            if is_generic_recommendation(descripcion_original):
+                continue
+
+            descripcion_normalizada = descripcion_original.lower()
+
+            clave_tipo = tipo if has_action_verb(descripcion_original) else "etiqueta"
+            key = f"{clave_tipo}:{descripcion_normalizada}"
 
             # Si no existe, agregar
             if key not in recomendaciones_dict:
@@ -264,8 +348,44 @@ def merge_recomendaciones(historias: List[Dict[str, Any]]) -> List[Dict[str, Any
 
                 if prioridad_nueva > prioridad_actual:
                     recomendaciones_dict[key] = rec
+                else:
+                    # Si cualquiera requiere seguimiento, mantener True
+                    requiere_actual = recomendaciones_dict[key].get('requiere_seguimiento')
+                    requiere_nuevo = rec.get('requiere_seguimiento')
+                    if requiere_nuevo and not requiere_actual:
+                        recomendaciones_dict[key]['requiere_seguimiento'] = True
 
     return list(recomendaciones_dict.values())
+
+
+GENERIC_REMISSION_MOTIVOS = [
+    "remision general",
+    "remisión general",
+    "remision a eps",
+    "remisión a eps",
+]
+
+
+def is_generic_remision(especialidad: str, motivo: str) -> bool:
+    if especialidad in {"eps/arl", "eps", "arl"} and not motivo:
+        return True
+    if motivo in GENERIC_REMISSION_MOTIVOS:
+        return True
+    return False
+
+
+def dedupe_alertas(alertas: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    vistas = set()
+    result = []
+    for alerta in alertas:
+        desc = _normalize_for_match(alerta.get('descripcion', ''))
+        campo = (alerta.get('campo_afectado') or '').lower()
+        key = (campo, desc)
+        if key in vistas:
+            continue
+        vistas.add(key)
+        result.append(alerta)
+    return result
 
 
 def merge_remisiones(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -278,13 +398,19 @@ def merge_remisiones(historias: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     for historia in historias:
         for rem in historia.get('remisiones', []):
-            especialidad = (rem.get('especialidad') or '').strip().lower()
-            motivo = (rem.get('motivo') or '').strip().lower()
+            especialidad = (rem.get('especialidad') or '').strip()
+            motivo = (rem.get('motivo') or '').strip()
 
-            if not especialidad:
+            especialidad_norm = especialidad.lower()
+            motivo_norm = motivo.lower()
+
+            if not especialidad_norm:
                 continue
 
-            key = f"{especialidad}:{motivo}"
+            if is_generic_remision(especialidad_norm, motivo_norm):
+                continue
+
+            key = f"{especialidad_norm}:{motivo_norm}"
 
             # Agregar o actualizar fecha si es más reciente
             if key not in remisiones_dict:
@@ -481,7 +607,7 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
         alertas_filtradas = filter_alerts(alertas_validacion, historia_obj)
 
         # Actualizar alertas en el dict
-        consolidada['alertas_validacion'] = [
+        alertas_dict = [
             {
                 'tipo': alerta.tipo,
                 'severidad': alerta.severidad,
@@ -491,6 +617,8 @@ def consolidate_historias(historias: List[Dict[str, Any]]) -> Dict[str, Any]:
             }
             for alerta in alertas_filtradas
         ]
+
+        consolidada['alertas_validacion'] = dedupe_alertas(alertas_dict)
 
         console.print(f"   ✅ Validaciones ejecutadas: {len(alertas_filtradas)} alertas clínicas")
 

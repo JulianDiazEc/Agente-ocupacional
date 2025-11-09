@@ -137,6 +137,9 @@ class PDFExporter:
         story.extend(self._build_header(historia))
         story.extend(self._build_patient_info(historia))
 
+        if getattr(historia, "hallazgos_examen_fisico", None):
+            story.extend(self._build_physical_exam(historia))
+
         if historia.signos_vitales:
             story.extend(self._build_vital_signs(historia))
 
@@ -191,6 +194,21 @@ class PDFExporter:
         return [
             _build_paragraph("Datos del paciente", self.styles["SectionTitle"]),
             table,
+            Spacer(1, 0.15 * inch),
+        ]
+
+    def _build_physical_exam(self, historia: HistoriaClinicaEstructurada) -> list:
+        texto = getattr(historia, "hallazgos_examen_fisico", None)
+        if not texto:
+            return []
+
+        texto = str(texto).strip()
+        if not texto:
+            return []
+
+        return [
+            _build_paragraph("Hallazgos examen físico", self.styles["SectionTitle"]),
+            _build_paragraph(texto, self.styles["Body"]),
             Spacer(1, 0.15 * inch),
         ]
 
