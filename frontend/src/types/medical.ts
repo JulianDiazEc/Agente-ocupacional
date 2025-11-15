@@ -21,7 +21,16 @@ export type AptitudLaboral =
   | 'apto_con_restricciones'
   | 'no_apto_temporal'
   | 'no_apto_definitivo'
+  | 'no_apto_permanente'
   | 'pendiente_concepto';
+
+export interface AptitudLaboralDetalle {
+  resultado_aptitud: AptitudLaboral;
+  recomendaciones?: string;
+  restricciones?: string;
+}
+
+export type AptitudLaboralData = AptitudLaboral | AptitudLaboralDetalle;
 
 export type TipoDiagnostico = 'principal' | 'secundario' | 'relacionado';
 
@@ -123,11 +132,13 @@ export interface Recomendacion {
 // ============================================================================
 
 export interface AlertaValidacion {
-  tipo: string;
+  tipo?: string;
   severidad: SeveridadAlerta;
-  campo_afectado: string;
-  descripcion: string;
-  accion_sugerida: string;
+  campo?: string;
+  campo_afectado?: string;
+  mensaje?: string;
+  descripcion?: string;
+  accion_sugerida?: string;
 }
 
 // ============================================================================
@@ -170,7 +181,7 @@ export interface HistoriaClinicaProcesada {
   antecedentes?: Antecedente[];
 
   // Aptitud laboral
-  aptitud_laboral: AptitudLaboral;
+  aptitud_laboral: AptitudLaboralData;
   restricciones_especificas?: string;
   recomendaciones_ocupacionales?: string[];
 
@@ -256,8 +267,8 @@ export interface StatisticsResponse {
     media: number;
     baja: number;
   };
-  distribucion_emo?: Record<TipoEMO, number>;
-  diagnosticos_frecuentes?: Array<{
+  distribucion_emo: Record<string, number>;
+  diagnosticos_frecuentes: Array<{
     codigo: string;
     descripcion: string;
     frecuencia: number;

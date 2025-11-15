@@ -11,9 +11,11 @@ export const Card: React.FC<CardProps> = ({
   subtitle,
   icon,
   headerAction,
+  action,
   children,
   className = '',
   hoverable = false,
+  onClick,
 }) => {
   // Base classes
   const baseClasses = 'rounded-xl overflow-hidden transition-all duration-200';
@@ -31,11 +33,17 @@ export const Card: React.FC<CardProps> = ({
 
   // Combine classes
   const cardClasses = `${baseClasses} ${variantClasses[variant]} ${hoverClasses} ${className}`;
+  const headerSlot = headerAction ?? action;
 
   return (
-    <div className={cardClasses}>
+    <div
+      className={cardClasses}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
       {/* Header */}
-      {(title || subtitle || icon || headerAction) && (
+      {(title || subtitle || icon || headerSlot) && (
         <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-pink-50/30 to-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 flex-1">
@@ -62,9 +70,9 @@ export const Card: React.FC<CardProps> = ({
             </div>
 
             {/* Header Action */}
-            {headerAction && (
+            {headerSlot && (
               <div className="ml-4 flex-shrink-0">
-                {headerAction}
+                {headerSlot}
               </div>
             )}
           </div>

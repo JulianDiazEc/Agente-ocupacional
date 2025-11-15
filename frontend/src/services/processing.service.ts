@@ -7,8 +7,6 @@ import api, { createFormData } from './api';
 import {
   HistoriaClinicaProcesada,
   HistoriaClinicaConsolidada,
-  ProcessingResponse,
-  ConsolidatedProcessingResponse,
 } from '@/types';
 
 /**

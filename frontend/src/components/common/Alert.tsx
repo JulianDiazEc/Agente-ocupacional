@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, CheckCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 import { AlertProps } from '@/types';
 
 /**
@@ -15,6 +15,7 @@ export const Alert: React.FC<AlertProps> = ({
   icon,
   action,
   className = '',
+  children,
 }) => {
   // Severity to variant mapping
   const severityConfig = {
@@ -61,10 +62,15 @@ export const Alert: React.FC<AlertProps> = ({
               {title}
             </h4>
           )}
-          {message && (
+          {message && !children && (
             <p className={`text-sm ${config.messageColor}`}>
               {message}
             </p>
+          )}
+          {children && (
+            <div className={`text-sm space-y-1 ${config.messageColor}`}>
+              {children}
+            </div>
           )}
           {action && (
             <div className="mt-3">
