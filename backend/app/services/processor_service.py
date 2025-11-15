@@ -9,11 +9,13 @@ import json
 import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+from collections import Counter
 
 # Importar módulos del CLI existente
 from src.extractors.azure_extractor import AzureDocumentExtractor
 from src.processors.claude_processor import ClaudeProcessor
-from src.config.settings import settings
+from src.exporters.excel_exporter import ExcelExporter
+from src.config.schemas import HistoriaClinicaEstructurada
 
 
 class ProcessorService:
@@ -92,24 +94,90 @@ class ProcessorService:
             result = self.process_single_document(file)
             individual_results.append(result)
 
-        # TODO: Implementar consolidación usando consolidate_person.py
-        # Por ahora retornamos el primer resultado como placeholder
-
-        consolidated = {
-            'person_id': person_id,
-            'num_documents_processed': len(files),
-            'consolidated_data': individual_results[0] if individual_results else {},
-            'individual_results': individual_results
-        }
+        # Consolidar resultados
+        consolidated = self._consolidate_historias(individual_results, person_id)
 
         # Guardar consolidado
-        consolidated_filename = f"{person_id}_consolidated.json"
+        file_id = str(uuid.uuid4())
+        consolidated['id_procesamiento'] = file_id
+        consolidated_filename = f"{file_id}.json"
         consolidated_path = self.processed_folder / consolidated_filename
 
         with open(consolidated_path, 'w', encoding='utf-8') as f:
             json.dump(consolidated, f, ensure_ascii=False, indent=2)
 
         return consolidated
+
+    def _consolidate_historias(
+        self,
+        historias: List[Dict[str, Any]],
+        person_id: str
+    ) -> Dict[str, Any]:
+        """
+        Consolida múltiples historias de la misma persona
+
+        Args:
+            historias: Lista de historias individuales
+            person_id: ID de la persona
+
+        Returns:
+            Historia consolidada
+        """
+        if not historias:
+            raise ValueError("No hay historias para consolidar")
+
+        # Usar la primera historia como base
+        base = historias[0].copy()
+
+        # Consolidar diagnósticos (evitar duplicados por código CIE-10)
+        diagnosticos_dict = {}
+        for historia in historias:
+            for diag in historia.get('diagnosticos', []):
+                codigo = diag.get('codigo_cie10')
+                if not codigo:
+                    continue
+
+                # Si no existe o tiene mayor confianza, actualizar
+                if codigo not in diagnosticos_dict:
+                    diagnosticos_dict[codigo] = diag
+                else:
+                    if diag.get('confianza', 0) > diagnosticos_dict[codigo].get('confianza', 0):
+                        diagnosticos_dict[codigo] = diag
+
+        base['diagnosticos'] = list(diagnosticos_dict.values())
+
+        # Consolidar exámenes (todos los exámenes relevantes)
+        examenes = []
+        for historia in historias:
+            examenes.extend(historia.get('examenes', []))
+        base['examenes'] = examenes
+
+        # Consolidar antecedentes (evitar duplicados)
+        antecedentes_set = set()
+        antecedentes = []
+        for historia in historias:
+            for ant in historia.get('antecedentes', []):
+                desc = ant.get('descripcion', '').strip().lower()
+                tipo = ant.get('tipo', '')
+                key = f"{tipo}:{desc}"
+                if key not in antecedentes_set:
+                    antecedentes_set.add(key)
+                    antecedentes.append(ant)
+        base['antecedentes'] = antecedentes
+
+        # Consolidar alertas de validación
+        alertas = []
+        for historia in historias:
+            alertas.extend(historia.get('alertas_validacion', []))
+        base['alertas_validacion'] = alertas
+
+        # Metadata de consolidación
+        base['tipo_documento_fuente'] = 'consolidado'
+        base['documentos_fuente'] = [h.get('archivo_origen', '') for h in historias]
+        base['num_documentos_consolidados'] = len(historias)
+        base['fecha_procesamiento'] = datetime.now().isoformat()
+
+        return base
 
     def get_all_results(self) -> List[Dict[str, Any]]:
         """
@@ -158,14 +226,37 @@ class ProcessorService:
         Returns:
             Path al archivo Excel generado
         """
-        # TODO: Implementar usando src/exporters/excel_exporter.py
-        # Por ahora retornamos un placeholder
+        # Obtener resultados a exportar
+        if result_ids:
+            results = []
+            for result_id in result_ids:
+                result = self.get_result_by_id(result_id)
+                if result:
+                    results.append(result)
+        else:
+            results = self.get_all_results()
 
+        if not results:
+            raise ValueError("No hay resultados para exportar")
+
+        # Convertir a objetos HistoriaClinicaEstructurada
+        historias = []
+        for result in results:
+            try:
+                historia = HistoriaClinicaEstructurada(**result)
+                historias.append(historia)
+            except Exception as e:
+                # Si falla la validación, intentar con los datos raw
+                print(f"Warning: No se pudo validar resultado: {e}")
+                continue
+
+        if not historias:
+            raise ValueError("No se pudieron convertir los resultados a formato válido")
+
+        # Exportar usando ExcelExporter
+        exporter = ExcelExporter(self.processed_folder)
         excel_filename = f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        excel_path = self.processed_folder / excel_filename
-
-        # Placeholder: crear Excel vacío
-        # En la implementación real, usar ExcelExporter del CLI
+        excel_path = exporter.export(historias, excel_filename)
 
         return excel_path
 
@@ -179,7 +270,16 @@ class ProcessorService:
         results = self.get_all_results()
 
         total = len(results)
-        avg_confidence = sum(r.get('confianza_extraccion', 0) for r in results) / total if total > 0 else 0
+        if total == 0:
+            return {
+                'total_procesados': 0,
+                'confianza_promedio': 0,
+                'alertas': {'alta': 0, 'media': 0, 'baja': 0},
+                'diagnosticos_frecuentes': [],
+                'distribucion_emo': {}
+            }
+
+        avg_confidence = sum(r.get('confianza_extraccion', 0) for r in results) / total
 
         # Contar alertas por severidad
         alertas_alta = sum(
@@ -195,6 +295,32 @@ class ProcessorService:
             for r in results
         )
 
+        # Contar diagnósticos más frecuentes
+        diagnosticos_counter = Counter()
+        for r in results:
+            for diag in r.get('diagnosticos', []):
+                codigo = diag.get('codigo_cie10')
+                descripcion = diag.get('descripcion', '')
+                if codigo:
+                    diagnosticos_counter[(codigo, descripcion)] += 1
+
+        diagnosticos_frecuentes = [
+            {
+                'codigo': codigo,
+                'descripcion': desc,
+                'frecuencia': count
+            }
+            for (codigo, desc), count in diagnosticos_counter.most_common(10)
+        ]
+
+        # Distribución por tipo EMO
+        emo_counter = Counter()
+        for r in results:
+            tipo_emo = r.get('tipo_emo', 'desconocido')
+            emo_counter[tipo_emo] += 1
+
+        distribucion_emo = dict(emo_counter)
+
         return {
             'total_procesados': total,
             'confianza_promedio': round(avg_confidence, 2),
@@ -202,5 +328,7 @@ class ProcessorService:
                 'alta': alertas_alta,
                 'media': alertas_media,
                 'baja': alertas_baja
-            }
+            },
+            'diagnosticos_frecuentes': diagnosticos_frecuentes,
+            'distribucion_emo': distribucion_emo
         }
