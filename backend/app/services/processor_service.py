@@ -16,7 +16,6 @@ from src.extractors.azure_extractor import AzureDocumentExtractor
 from src.processors.claude_processor import ClaudeProcessor
 from src.exporters.excel_exporter import ExcelExporter
 from src.config.schemas import HistoriaClinicaEstructurada
-from src.config.settings import settings
 
 
 class ProcessorService:
