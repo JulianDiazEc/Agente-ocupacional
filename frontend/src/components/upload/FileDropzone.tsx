@@ -19,6 +19,12 @@ export const FileDropzone: React.FC<FileUploadProps> = ({
   className = '',
 }) => {
   const [internalError, setInternalError] = useState<string>('');
+  const allowedExtensions = accept
+    ? accept.split(',').map((ext) => ext.trim().toLowerCase()).filter(Boolean)
+    : ['.pdf'];
+  const dropzoneAccept = {
+    'application/pdf': allowedExtensions.length > 0 ? allowedExtensions : ['.pdf'],
+  };
 
   const onDrop = useCallback(
     (acceptedFiles: File[], rejectedFiles: any[]) => {
@@ -44,7 +50,7 @@ export const FileDropzone: React.FC<FileUploadProps> = ({
 
       // Validar tipo
       const invalidFiles = acceptedFiles.filter(
-        (file) => !file.name.toLowerCase().endsWith('.pdf')
+        (file) => !allowedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
       );
 
       if (invalidFiles.length > 0) {
@@ -62,12 +68,12 @@ export const FileDropzone: React.FC<FileUploadProps> = ({
       const newFiles = [...files, ...acceptedFiles];
       onFilesChange(newFiles);
     },
-    [files, maxSize, maxFiles, onFilesChange]
+    [files, maxSize, maxFiles, onFilesChange, allowedExtensions]
   );
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
     onDrop,
-    accept: { 'application/pdf': ['.pdf'] },
+    accept: dropzoneAccept,
     multiple,
     disabled,
     maxSize: maxSize * 1024 * 1024,

@@ -15,6 +15,7 @@ import { DiagnosticsList } from '@/components/results/DiagnosticsList';
 import { ExamResults } from '@/components/results/ExamResults';
 import { useResults } from '@/contexts';
 import { exportService } from '@/services';
+import { AlertaValidacion } from '@/types';
 
 /**
  * Componente ResultDetailPage
@@ -71,10 +72,24 @@ export const ResultDetailPage: React.FC = () => {
   /**
    * Get badge para aptitud
    */
-  const getAptitudBadge = () => {
+  const getAptitudResultado = () => {
     if (!selectedResult) return null;
+    return typeof selectedResult.aptitud_laboral === 'string'
+      ? selectedResult.aptitud_laboral
+      : selectedResult.aptitud_laboral.resultado_aptitud;
+  };
 
-    const { resultado_aptitud } = selectedResult.aptitud_laboral;
+  const getAptitudRecomendaciones = () => {
+    if (!selectedResult) return null;
+    return typeof selectedResult.aptitud_laboral === 'string'
+      ? undefined
+      : selectedResult.aptitud_laboral.recomendaciones;
+  };
+
+  const getAptitudBadge = () => {
+    const resultado_aptitud = getAptitudResultado();
+
+    if (!resultado_aptitud) return null;
 
     switch (resultado_aptitud) {
       case 'apto':
@@ -84,11 +99,18 @@ export const ResultDetailPage: React.FC = () => {
       case 'no_apto_temporal':
         return <Badge variant="error" icon={<XCircle />}>No Apto Temporal</Badge>;
       case 'no_apto_permanente':
+      case 'no_apto_definitivo':
         return <Badge variant="error" icon={<XCircle />}>No Apto Permanente</Badge>;
       default:
         return <Badge variant="default">Pendiente</Badge>;
     }
   };
+
+  const resolveAlertaCampo = (alerta: AlertaValidacion) =>
+    alerta.campo || alerta.campo_afectado || 'Campo no especificado';
+
+  const resolveAlertaMensaje = (alerta: AlertaValidacion) =>
+    alerta.mensaje || alerta.descripcion || alerta.accion_sugerida || 'Sin descripción';
 
   /**
    * Loading
@@ -137,6 +159,7 @@ export const ResultDetailPage: React.FC = () => {
     );
   }
 
+  const aptitudRecomendaciones = getAptitudRecomendaciones();
   const alertasAltas = selectedResult.alertas_validacion.filter((a) => a.severidad === 'alta');
   const alertasMedias = selectedResult.alertas_validacion.filter((a) => a.severidad === 'media');
   const alertasBajas = selectedResult.alertas_validacion.filter((a) => a.severidad === 'baja');
@@ -189,9 +212,9 @@ export const ResultDetailPage: React.FC = () => {
           <div>
             <p className="text-sm text-gray-600 mb-1">Aptitud Laboral</p>
             {getAptitudBadge()}
-            {selectedResult.aptitud_laboral.recomendaciones && (
+            {aptitudRecomendaciones && (
               <p className="text-sm text-gray-600 mt-2">
-                {selectedResult.aptitud_laboral.recomendaciones}
+                {aptitudRecomendaciones}
               </p>
             )}
           </div>
@@ -225,22 +248,22 @@ export const ResultDetailPage: React.FC = () => {
 
           {alertasAltas.map((alerta, idx) => (
             <Alert key={`alta-${idx}`} severity="alta" icon={<AlertTriangle />}>
-              <p className="font-medium">{alerta.campo}</p>
-              <p className="text-sm mt-1">{alerta.mensaje}</p>
+              <p className="font-medium">{resolveAlertaCampo(alerta)}</p>
+              <p className="text-sm mt-1">{resolveAlertaMensaje(alerta)}</p>
             </Alert>
           ))}
 
           {alertasMedias.map((alerta, idx) => (
             <Alert key={`media-${idx}`} severity="media" icon={<AlertTriangle />}>
-              <p className="font-medium">{alerta.campo}</p>
-              <p className="text-sm mt-1">{alerta.mensaje}</p>
+              <p className="font-medium">{resolveAlertaCampo(alerta)}</p>
+              <p className="text-sm mt-1">{resolveAlertaMensaje(alerta)}</p>
             </Alert>
           ))}
 
           {alertasBajas.map((alerta, idx) => (
             <Alert key={`baja-${idx}`} severity="baja" icon={<AlertTriangle />}>
-              <p className="font-medium">{alerta.campo}</p>
-              <p className="text-sm mt-1">{alerta.mensaje}</p>
+              <p className="font-medium">{resolveAlertaCampo(alerta)}</p>
+              <p className="text-sm mt-1">{resolveAlertaMensaje(alerta)}</p>
             </Alert>
           ))}
         </div>

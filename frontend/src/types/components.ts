@@ -36,9 +36,11 @@ export interface CardProps {
   subtitle?: string;
   icon?: ReactNode;
   headerAction?: ReactNode;
+  action?: ReactNode;
   children: ReactNode;
   className?: string;
   hoverable?: boolean;
+  onClick?: () => void;
 }
 
 // ============================================================================
@@ -64,12 +66,13 @@ export interface BadgeProps {
 export interface AlertProps {
   severity: SeveridadAlerta;
   title?: string;
-  message: string;
+  message?: string;
   onClose?: () => void;
   closeable?: boolean;
   icon?: ReactNode;
   action?: ReactNode;
   className?: string;
+  children?: ReactNode;
 }
 
 // ============================================================================

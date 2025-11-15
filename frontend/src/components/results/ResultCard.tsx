@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Calendar, User, Briefcase, AlertCircle, ChevronRight } from 'lucide-react';
+import { FileText, Calendar, Briefcase, AlertCircle, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/common';
 import { HistoriaClinicaProcesada } from '@/types';
 import { format } from 'date-fns';
@@ -33,7 +33,12 @@ export const ResultCard: React.FC<ResultCardProps> = ({
 
   // Aptitud badge variant
   const getAptitudBadge = () => {
-    switch (historia.aptitud_laboral) {
+    const resultado =
+      typeof historia.aptitud_laboral === 'string'
+        ? historia.aptitud_laboral
+        : historia.aptitud_laboral.resultado_aptitud;
+
+    switch (resultado) {
       case 'apto':
         return { variant: 'success' as const, label: 'Apto' };
       case 'apto_con_restricciones':
@@ -41,6 +46,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
       case 'no_apto_temporal':
         return { variant: 'warning' as const, label: 'No apto temporal' };
       case 'no_apto_definitivo':
+      case 'no_apto_permanente':
         return { variant: 'error' as const, label: 'No apto definitivo' };
       default:
         return { variant: 'default' as const, label: 'Pendiente' };

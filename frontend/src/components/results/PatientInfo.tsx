@@ -1,12 +1,13 @@
 import React from 'react';
 import { User, FileText, Building, Briefcase, Calendar } from 'lucide-react';
-import { DatosEmpleado } from '@/types';
+import { DatosEmpleado, HistoriaClinicaProcesada } from '@/types';
 
 interface PatientInfoProps {
-  empleado: DatosEmpleado;
+  empleado?: DatosEmpleado;
   tipoEMO?: string;
   fechaEMO?: string;
   className?: string;
+  historia?: HistoriaClinicaProcesada;
 }
 
 /**
@@ -17,57 +18,66 @@ export const PatientInfo: React.FC<PatientInfoProps> = ({
   empleado,
   tipoEMO,
   fechaEMO,
+  historia,
   className = '',
 }) => {
+  const resolvedEmpleado = historia ? historia.datos_empleado : empleado;
+  const resolvedTipoEMO = historia ? historia.tipo_emo : tipoEMO;
+  const resolvedFechaEMO = historia ? historia.fecha_emo : fechaEMO;
+
+  if (!resolvedEmpleado) {
+    return null;
+  }
+
   const infoItems = [
     {
       icon: <User size={16} />,
       label: 'Nombre completo',
-      value: empleado.nombre_completo,
+      value: resolvedEmpleado.nombre_completo,
       show: true,
     },
     {
       icon: <FileText size={16} />,
       label: 'Documento',
-      value: `${empleado.tipo_documento} ${empleado.documento}`,
+      value: `${resolvedEmpleado.tipo_documento} ${resolvedEmpleado.documento}`,
       show: true,
     },
     {
       icon: <Calendar size={16} />,
       label: 'Edad',
-      value: empleado.edad ? `${empleado.edad} años` : 'No especificado',
-      show: !!empleado.edad,
+      value: resolvedEmpleado.edad ? `${resolvedEmpleado.edad} años` : 'No especificado',
+      show: !!resolvedEmpleado.edad,
     },
     {
       icon: <Briefcase size={16} />,
       label: 'Cargo',
-      value: empleado.cargo || 'No especificado',
-      show: !!empleado.cargo,
+      value: resolvedEmpleado.cargo || 'No especificado',
+      show: !!resolvedEmpleado.cargo,
     },
     {
       icon: <Building size={16} />,
       label: 'Empresa',
-      value: empleado.empresa || 'No especificado',
-      show: !!empleado.empresa,
+      value: resolvedEmpleado.empresa || 'No especificado',
+      show: !!resolvedEmpleado.empresa,
       fullWidth: true,
     },
     {
       icon: <FileText size={16} />,
       label: 'Área',
-      value: empleado.area || 'No especificado',
-      show: !!empleado.area,
+      value: resolvedEmpleado.area || 'No especificado',
+      show: !!resolvedEmpleado.area,
     },
     {
       icon: <Calendar size={16} />,
       label: 'Tipo de EMO',
-      value: tipoEMO?.toUpperCase() || 'No especificado',
-      show: !!tipoEMO,
+      value: resolvedTipoEMO?.toUpperCase() || 'No especificado',
+      show: !!resolvedTipoEMO,
     },
     {
       icon: <Calendar size={16} />,
       label: 'Fecha de EMO',
-      value: fechaEMO ? new Date(fechaEMO).toLocaleDateString('es-CO') : 'No especificado',
-      show: !!fechaEMO,
+      value: resolvedFechaEMO ? new Date(resolvedFechaEMO).toLocaleDateString('es-CO') : 'No especificado',
+      show: !!resolvedFechaEMO,
     },
   ];
 

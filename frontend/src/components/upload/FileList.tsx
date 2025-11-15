@@ -1,18 +1,13 @@
 import React from 'react';
 import { FileText, X, CheckCircle, AlertCircle } from 'lucide-react';
 
-interface FileItem {
-  file: File;
-  status?: 'pending' | 'uploading' | 'success' | 'error';
-  error?: string;
-}
-
 interface FileListProps {
   files: File[];
   onRemove?: (index: number) => void;
   statuses?: Record<number, 'pending' | 'uploading' | 'success' | 'error'>;
   errors?: Record<number, string>;
   className?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -25,6 +20,7 @@ export const FileList: React.FC<FileListProps> = ({
   statuses = {},
   errors = {},
   className = '',
+  disabled = false,
 }) => {
   if (files.length === 0) {
     return null;
@@ -109,7 +105,7 @@ export const FileList: React.FC<FileListProps> = ({
           </div>
 
           {/* Remove button */}
-          {onRemove && statuses[index] !== 'uploading' && (
+          {onRemove && statuses[index] !== 'uploading' && !disabled && (
             <button
               onClick={() => onRemove(index)}
               className="flex-shrink-0 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
