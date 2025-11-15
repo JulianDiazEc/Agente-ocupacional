@@ -27,3 +27,15 @@ gunicorn==21.2.0
 
 # Utils
 python-dateutil==2.8.2
+
+# Dependencies from main project (src/)
+# Estas son necesarias para usar los módulos del CLI
+anthropic>=0.39.0
+azure-ai-formrecognizer>=3.3.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+click>=8.1.0
+rich>=13.0.0
+pandas>=2.0.0
+openpyxl>=3.1.0
+tenacity>=8.2.0
