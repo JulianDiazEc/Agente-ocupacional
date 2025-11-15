@@ -1,9 +1,10 @@
 import React, { ReactNode } from 'react';
+import { Outlet } from 'react-router-dom';
 import { Header } from './Header';
 import { Footer } from './Footer';
 
 interface MainLayoutProps {
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '7xl' | 'full';
   noPadding?: boolean;
@@ -12,6 +13,7 @@ interface MainLayoutProps {
 /**
  * Layout principal de la aplicación
  * Incluye Header, contenido principal y Footer
+ * Soporta tanto children como Outlet de React Router
  */
 export const MainLayout: React.FC<MainLayoutProps> = ({
   children,
@@ -39,7 +41,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
       {/* Main Content */}
       <main className={`flex-1 ${className}`}>
         <div className={`${maxWidthClasses[maxWidth]} mx-auto ${paddingClasses}`}>
-          {children}
+          {/* Usar children si se proporciona, sino usar Outlet para React Router */}
+          {children || <Outlet />}
         </div>
       </main>
 
