@@ -1,25 +1,33 @@
-import { BrowserRouter } from 'react-router-dom'
-import { ThemeProvider } from '@mui/material/styles'
-import CssBaseline from '@mui/material/CssBaseline'
-import { theme } from '@/theme'
-// import AppRoutes from './routes'
-// import { ProcessingProvider } from '@/contexts/ProcessingContext'
+/**
+ * Componente principal de la aplicación
+ * Integra providers, theme y router
+ */
 
-function App() {
+import React from 'react';
+import { ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import { theme } from '@/theme';
+import { ProcessingProvider, ResultsProvider } from '@/contexts';
+import { AppRouter } from '@/router';
+
+/**
+ * Componente App
+ */
+const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
+      {/* CssBaseline para reset de estilos de Material UI */}
       <CssBaseline />
-      <BrowserRouter>
-        {/* <ProcessingProvider> */}
-          <div>
-            <h1>Narah HC Processor</h1>
-            <p>Sistema de procesamiento de historias clínicas ocupacionales</p>
-            {/* <AppRoutes /> */}
-          </div>
-        {/* </ProcessingProvider> */}
-      </BrowserRouter>
-    </ThemeProvider>
-  )
-}
 
-export default App
+      {/* Context Providers */}
+      <ProcessingProvider>
+        <ResultsProvider>
+          {/* React Router */}
+          <AppRouter />
+        </ResultsProvider>
+      </ProcessingProvider>
+    </ThemeProvider>
+  );
+};
+
+export default App;
