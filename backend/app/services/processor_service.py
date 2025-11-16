@@ -55,10 +55,13 @@ class ProcessorService:
             # 1. Extraer texto con Azure
             extracted_text = self.extractor.extract(temp_path)
 
-            # 2. Procesar con Claude
-            processed_data = self.processor.process(extracted_text, filename)
+            # 2. Procesar con Claude (retorna objeto Pydantic)
+            historia_pydantic = self.processor.process(extracted_text, filename)
 
-            # 3. Guardar resultado
+            # 3. Convertir a diccionario JSON serializable
+            processed_data = historia_pydantic.model_dump(mode='json')
+
+            # 4. Guardar resultado
             result_filename = f"{file_id}.json"
             result_path = self.processed_folder / result_filename
 
