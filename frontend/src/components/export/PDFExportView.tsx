@@ -11,7 +11,7 @@ interface PDFExportViewProps {
 }
 
 const PDFExportView: React.FC<PDFExportViewProps> = ({ historia }) => {
-  const { datos_empleado, tipo_emo, fecha_emo, signos_vitales, examenes, diagnosticos, antecedentes, aptitud_laboral, recomendaciones } = historia;
+  const { datos_empleado, tipo_emo, fecha_emo, signos_vitales, examenes, diagnosticos, aptitud_laboral, recomendaciones } = historia;
 
   // Procesar aptitud laboral
   const aptitud = typeof aptitud_laboral === 'string'

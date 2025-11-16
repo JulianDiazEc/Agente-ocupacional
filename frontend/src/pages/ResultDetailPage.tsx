@@ -279,14 +279,17 @@ export const ResultDetailPage: React.FC = () => {
         </Box>
       </div>
 
-      {/* Vista optimizada para PDF (oculta) */}
+      {/* Vista optimizada para PDF (oculta pero renderizada) */}
       <div
         ref={pdfContentRef}
         style={{
-          position: 'absolute',
-          left: '-9999px',
+          position: 'fixed',
           top: 0,
-          width: '210mm' // Ancho A4
+          left: 0,
+          width: '210mm',
+          zIndex: -1000,
+          opacity: 0,
+          pointerEvents: 'none'
         }}
       >
         <PDFExportView historia={selectedResult} />
