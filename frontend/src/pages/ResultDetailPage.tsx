@@ -1,5 +1,5 @@
 /**
- * Página de detalle de resultado - Reorganizada con Resumen Clínico
+ * Página de detalle de resultado - Diseño simplificado y elegante
  * Muestra información completa de una historia clínica procesada
  */
 
@@ -15,8 +15,7 @@ import { exportService } from '@/services';
 // Componentes de evaluación
 import PatientHeader from '@/components/evaluation/PatientHeader';
 import AptitudeSummaryCard from '@/components/evaluation/AptitudeSummaryCard';
-import ClinicalSummaryCard from '@/components/evaluation/ClinicalSummaryCard';
-import ValidationAlertsCard from '@/components/evaluation/ValidationAlertsCard';
+import UnifiedClinicalCard from '@/components/evaluation/UnifiedClinicalCard';
 
 /**
  * Componente ResultDetailPage
@@ -105,7 +104,7 @@ export const ResultDetailPage: React.FC = () => {
         </Box>
       </Box>
     );
-  };
+  }
 
   /**
    * No encontrado
@@ -166,40 +165,30 @@ export const ResultDetailPage: React.FC = () => {
         </Box>
       </Box>
 
-      {/* 1️⃣ Header del Paciente */}
+      {/* 1. Header del Paciente */}
       <PatientHeader
         datos_empleado={selectedResult.datos_empleado}
         tipo_emo={selectedResult.tipo_emo}
         fecha_emo={selectedResult.fecha_emo}
       />
 
-      {/* 2️⃣ Card Principal: Estimación de Aptitud Laboral */}
+      {/* 2. Aptitud Laboral (simplificada) */}
       <AptitudeSummaryCard
         aptitud_laboral={selectedResult.aptitud_laboral?.resultado_aptitud}
         tipo_emo={selectedResult.tipo_emo}
         confianza_extraccion={selectedResult.confianza_extraccion}
-        diagnosticos={selectedResult.diagnosticos}
-        signos_vitales={selectedResult.signos_vitales}
-        examenes={selectedResult.examenes}
       />
 
-      {/* 3️⃣ Resumen Clínico (NUEVO - reemplaza KeyFindingsCard) */}
-      <Box>
-        <Typography variant="h6" className="font-semibold text-gray-900 mb-4">
-          Resumen Clínico
-        </Typography>
-        <ClinicalSummaryCard
-          signos_vitales={selectedResult.signos_vitales}
-          examenes={selectedResult.examenes}
-          diagnosticos={selectedResult.diagnosticos}
-          antecedentes={selectedResult.antecedentes}
-        />
-      </Box>
+      {/* 3. Resumen Clínico Unificado (hallazgos + normales + alertas) */}
+      <UnifiedClinicalCard
+        signos_vitales={selectedResult.signos_vitales}
+        examenes={selectedResult.examenes}
+        diagnosticos={selectedResult.diagnosticos}
+        antecedentes={selectedResult.antecedentes}
+        alertas={selectedResult.alertas_validacion}
+      />
 
-      {/* 4️⃣ Alertas de Validación (MOVIDO aquí, mejorado con colapsables) */}
-      <ValidationAlertsCard alertas={selectedResult.alertas_validacion} />
-
-      {/* 5️⃣ Metadata de procesamiento (al final) */}
+      {/* 4. Metadata de procesamiento */}
       <Box className="bg-gray-50 border border-gray-200 rounded-lg p-6 mt-8">
         <Typography variant="subtitle2" className="font-semibold text-gray-700 mb-4">
           Información de Procesamiento
