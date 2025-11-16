@@ -146,7 +146,20 @@ def export_to_excel():
         data = request.get_json()
         result_ids = data.get('result_ids', []) if data else []
 
+        # Validar que result_ids sea una lista si se proporciona
+        if result_ids and not isinstance(result_ids, list):
+            return jsonify({'detail': 'result_ids debe ser una lista de IDs'}), 400
+
         excel_file = processor_service.export_to_excel(result_ids)
+
+        # Verificar que el archivo existe y no está vacío
+        if not excel_file.exists():
+            logger.error(f"El archivo Excel no se generó correctamente: {excel_file}")
+            return jsonify({'detail': 'Error: el archivo Excel no se generó correctamente'}), 500
+
+        if excel_file.stat().st_size == 0:
+            logger.error(f"El archivo Excel está vacío: {excel_file}")
+            return jsonify({'detail': 'Error: el archivo Excel está vacío'}), 500
 
         return send_file(
             excel_file,
@@ -154,9 +167,12 @@ def export_to_excel():
             as_attachment=True,
             download_name='resultados_hc.xlsx'
         )
-    except Exception:
+    except ValueError as e:
+        logger.error(f"Error de validación al exportar a Excel: {str(e)}")
+        return jsonify({'detail': str(e)}), 400
+    except Exception as e:
         logger.exception("Error al exportar a Excel")
-        return jsonify({'error': 'Error al exportar a Excel.'}), 500
+        return jsonify({'detail': f'Error al exportar a Excel: {str(e)}'}), 500
 
 
 @bp.route('/stats', methods=['GET'])

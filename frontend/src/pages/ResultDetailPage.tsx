@@ -25,6 +25,7 @@ export const ResultDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { selectedResult, loading, error, fetchResultById, selectResult } = useResults();
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   /**
    * Cargar resultado al montar
@@ -45,10 +46,12 @@ export const ResultDetailPage: React.FC = () => {
   const handleExportJSON = async () => {
     if (!selectedResult) return;
     setExporting(true);
+    setExportError(null);
     try {
       await exportService.exportToJSON(selectedResult);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error exportando:', err);
+      setExportError(err.message || 'Error al exportar a JSON');
     } finally {
       setExporting(false);
     }
@@ -60,10 +63,12 @@ export const ResultDetailPage: React.FC = () => {
   const handleExportExcel = async () => {
     if (!selectedResult) return;
     setExporting(true);
+    setExportError(null);
     try {
       await exportService.exportToExcel([selectedResult.id_procesamiento]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error exportando:', err);
+      setExportError(err.message || 'Error al exportar a Excel');
     } finally {
       setExporting(false);
     }
@@ -165,6 +170,22 @@ export const ResultDetailPage: React.FC = () => {
         </Box>
       </Box>
 
+      {/* Mensaje de error de exportación */}
+      {exportError && (
+        <Alert severity="alta">
+          <p className="font-medium">Error de exportación</p>
+          <p className="text-sm mt-1">{exportError}</p>
+          <MuiButton
+            variant="text"
+            size="small"
+            onClick={() => setExportError(null)}
+            className="mt-2"
+          >
+            Cerrar
+          </MuiButton>
+        </Alert>
+      )}
+
       {/* 1. Header del Paciente */}
       <PatientHeader
         datos_empleado={selectedResult.datos_empleado}
@@ -185,6 +206,7 @@ export const ResultDetailPage: React.FC = () => {
         examenes={selectedResult.examenes}
         diagnosticos={selectedResult.diagnosticos}
         antecedentes={selectedResult.antecedentes}
+        recomendaciones={selectedResult.recomendaciones}
         alertas={selectedResult.alertas_validacion}
       />
 

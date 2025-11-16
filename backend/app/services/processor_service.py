@@ -229,13 +229,24 @@ class ProcessorService:
         Returns:
             Path al archivo Excel generado
         """
+        from app import logger
+
         # Obtener resultados a exportar
         if result_ids:
             results = []
+            not_found_ids = []
             for result_id in result_ids:
                 result = self.get_result_by_id(result_id)
                 if result:
                     results.append(result)
+                else:
+                    not_found_ids.append(result_id)
+
+            if not_found_ids:
+                logger.warning(f"No se encontraron los siguientes IDs: {not_found_ids}")
+
+            if not results and result_ids:
+                raise ValueError(f"No se encontraron resultados para los IDs proporcionados: {result_ids}")
         else:
             results = self.get_all_results()
 
@@ -244,24 +255,41 @@ class ProcessorService:
 
         # Convertir a objetos HistoriaClinicaEstructurada
         historias = []
+        failed_validations = []
         for result in results:
             try:
                 historia = HistoriaClinicaEstructurada(**result)
                 historias.append(historia)
             except Exception as e:
-                # Si falla la validación, intentar con los datos raw
-                print("Warning: No se pudo validar resultado: %s" % (e,))
+                # Si falla la validación, registrar el error
+                result_id = result.get('id_procesamiento', 'unknown')
+                logger.warning(f"No se pudo validar resultado {result_id}: {str(e)}")
+                failed_validations.append(result_id)
                 continue
 
+        if failed_validations:
+            logger.warning(f"Se omitieron {len(failed_validations)} resultados con errores de validación")
+
         if not historias:
-            raise ValueError("No se pudieron convertir los resultados a formato válido")
+            raise ValueError(
+                f"No se pudieron convertir los resultados a formato válido. "
+                f"Todos los {len(results)} resultados tienen errores de validación."
+            )
 
         # Exportar usando ExcelExporter
-        exporter = ExcelExporter(self.processed_folder)
-        excel_filename = f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        excel_path = exporter.export(historias, excel_filename)
+        try:
+            exporter = ExcelExporter(self.processed_folder)
+            excel_filename = f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            excel_path = exporter.export(historias, excel_filename)
 
-        return excel_path
+            if not excel_path or not excel_path.exists():
+                raise ValueError("El archivo Excel no se generó correctamente")
+
+            logger.info(f"Excel generado exitosamente: {excel_path} ({len(historias)} registros)")
+            return excel_path
+        except Exception as e:
+            logger.error(f"Error al generar archivo Excel: {str(e)}")
+            raise ValueError(f"Error al generar archivo Excel: {str(e)}")
 
     def get_statistics(self) -> Dict[str, Any]:
         """

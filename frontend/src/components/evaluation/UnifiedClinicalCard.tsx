@@ -7,6 +7,7 @@ import {
   FamilyRestroom,
   CheckCircle,
   WarningAmber,
+  Assignment,
 } from '@mui/icons-material';
 
 interface SignosVitales {
@@ -48,11 +49,19 @@ interface Alerta {
   accion_sugerida?: string;
 }
 
+interface Recomendacion {
+  tipo?: string;
+  descripcion?: string;
+  especialidad?: string;
+  prioridad?: 'alta' | 'media' | 'baja';
+}
+
 interface UnifiedClinicalCardProps {
   signos_vitales?: SignosVitales;
   examenes?: Examen[];
   diagnosticos?: Diagnostico[];
   antecedentes?: Antecedente[];
+  recomendaciones?: Recomendacion[];
   alertas?: Alerta[];
 }
 
@@ -61,6 +70,7 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
   examenes = [],
   diagnosticos = [],
   antecedentes = [],
+  recomendaciones = [],
   alertas = [],
 }) => {
   // Función para comparar valor con rango y obtener flecha
@@ -150,12 +160,25 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
     (ex) => ex.interpretacion?.toLowerCase() === 'normal'
   );
 
+  // Eliminar recomendaciones duplicadas basándose en la descripción
+  const recomendacionesUnicas = recomendaciones.reduce((acc: Recomendacion[], rec) => {
+    const descripcionNormalizada = rec.descripcion?.toLowerCase().trim();
+    const existe = acc.some(
+      (r) => r.descripcion?.toLowerCase().trim() === descripcionNormalizada
+    );
+    if (!existe && rec.descripcion) {
+      acc.push(rec);
+    }
+    return acc;
+  }, []);
+
   const hayContenido =
     diagnosticos.length > 0 ||
     examenesAlterados.length > 0 ||
     signosVitalesFueraRango.length > 0 ||
     antecedentesActivos.length > 0 ||
     examenesNormales.length > 0 ||
+    recomendacionesUnicas.length > 0 ||
     alertas.length > 0;
 
   return (
@@ -405,6 +428,48 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
                     >
                       {examText}
                     </Typography>
+                  );
+                })}
+              </Box>
+            </Box>
+          </>
+        )}
+
+        {/* SECCIÓN: Remisiones y Recomendaciones (siempre visible, sin collapse) */}
+        {recomendacionesUnicas.length > 0 && (
+          <>
+            <Divider className="my-4" />
+            <Box>
+              <Box className="flex items-center gap-2 mb-3">
+                <Assignment className="text-blue-700" fontSize="small" />
+                <Typography variant="subtitle2" className="font-semibold text-gray-900">
+                  Remisiones y Recomendaciones
+                </Typography>
+              </Box>
+              <Box component="ul" className="space-y-2 pl-5">
+                {recomendacionesUnicas.map((rec, index) => {
+                  const tipo = rec.tipo || 'Recomendación';
+                  const especialidad = rec.especialidad;
+                  const prioridad = rec.prioridad;
+                  const descripcion = rec.descripcion || '';
+
+                  return (
+                    <Box component="li" key={index} className="text-gray-800">
+                      <Typography variant="body2" className="mb-1">
+                        <span className="font-medium capitalize">{tipo}</span>
+                        {especialidad && (
+                          <span className="text-gray-600 text-xs ml-2">
+                            ({especialidad})
+                          </span>
+                        )}
+                        {prioridad && (
+                          <span className="text-gray-600 text-xs ml-2">
+                            [Prioridad: {prioridad}]
+                          </span>
+                        )}
+                        {descripcion && <span>: {descripcion}</span>}
+                      </Typography>
+                    </Box>
                   );
                 })}
               </Box>
