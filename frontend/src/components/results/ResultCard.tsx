@@ -43,7 +43,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
         ? historia.aptitud_laboral
         : historia.aptitud_laboral.resultado_aptitud;
 
-    switch (resultado) {
+    switch (resultado as string) {
       case 'apto':
       case 'apto_sin_restricciones':
         return { variant: 'success' as const, label: 'Apto' };

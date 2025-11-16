@@ -161,7 +161,7 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
   );
 
   // Función para limpiar y simplificar descripciones de recomendaciones
-  const limpiarDescripcion = (tipo: string | undefined, descripcion: string): string => {
+  const limpiarDescripcion = (_tipo: string | undefined, descripcion: string): string => {
     let desc = descripcion.trim();
 
     // Remover prefijos redundantes del tipo

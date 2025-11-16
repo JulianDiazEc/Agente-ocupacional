@@ -106,7 +106,7 @@ export const UploadPage: React.FC = () => {
       {status === 'processing' && (
         <UploadProgress
           progress={progress}
-          currentFile={currentFile}
+          currentFile={currentFile || undefined}
           totalFiles={files.length}
         />
       )}

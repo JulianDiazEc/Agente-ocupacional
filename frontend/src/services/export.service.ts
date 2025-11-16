@@ -93,9 +93,9 @@ export const exportService = {
 
       // Configuración de html2pdf
       const options = {
-        margin: [10, 10, 10, 10],
+        margin: [10, 10, 10, 10] as [number, number, number, number],
         filename: filename || `historia_clinica_${new Date().getTime()}.pdf`,
-        image: { type: 'jpeg', quality: 0.95 },
+        image: { type: 'jpeg' as const, quality: 0.95 },
         html2canvas: {
           scale: 2,
           useCORS: true,
@@ -103,9 +103,9 @@ export const exportService = {
           letterRendering: true
         },
         jsPDF: {
-          unit: 'mm',
-          format: 'letter',
-          orientation: 'portrait'
+          unit: 'mm' as const,
+          format: 'letter' as const,
+          orientation: 'portrait' as const
         },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };

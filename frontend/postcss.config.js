@@ -1,7 +1,14 @@
 export default {
   plugins: {
     '@tailwindcss/postcss': {},
-    '@csstools/postcss-oklab-function': { preserve: false },
+    'postcss-preset-env': {
+      stage: 2,
+      features: {
+        'oklab-function': { preserve: false },
+        'color-function': { preserve: false },
+        'lab-function': { preserve: false },
+      },
+    },
     autoprefixer: {},
   },
 };

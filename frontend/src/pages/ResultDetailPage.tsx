@@ -7,7 +7,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, CircularProgress, Typography, Button as MuiButton } from '@mui/material';
 import { ArrowBack, Download, Description, PictureAsPdf } from '@mui/icons-material';
-import { Button } from '@/components/common/Button';
 import { Alert } from '@/components/common/Alert';
 import { useResults } from '@/contexts';
 import { exportService } from '@/services';
@@ -210,7 +209,6 @@ export const ResultDetailPage: React.FC = () => {
 
         {/* 3. Resumen Clínico Unificado (hallazgos + normales + alertas) */}
         <UnifiedClinicalCard
-          signos_vitales={selectedResult.signos_vitales}
           examenes={selectedResult.examenes}
           diagnosticos={selectedResult.diagnosticos}
           antecedentes={selectedResult.antecedentes}
