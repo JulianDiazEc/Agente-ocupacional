@@ -405,10 +405,10 @@ def _check_visual_consistency(historia: HistoriaClinicaEstructurada) -> List[Ale
         if any(diag.codigo_cie10.startswith(code[:4]) for code in VISUAL_DIAGNOSIS_CODES.keys())
     ]
 
-    logger.debug(f"Validación visual: {len(diagnosticos_visuales)} diagnósticos visuales encontrados")
+    logger.debug("Validación visual: %d diagnósticos visuales encontrados", len(diagnosticos_visuales))
     if diagnosticos_visuales:
         for diag in diagnosticos_visuales:
-            logger.debug(f"  - {diag.codigo_cie10}: {diag.descripcion}")
+            logger.debug("  - %s: %s", diag.codigo_cie10, diag.descripcion)
 
     if not diagnosticos_visuales:
         return alertas
@@ -419,11 +419,11 @@ def _check_visual_consistency(historia: HistoriaClinicaEstructurada) -> List[Ale
         if ex.tipo == "optometria"
     ]
 
-    logger.debug(f"Validación visual: {len(examenes_visuales)} exámenes de optometría encontrados")
+    logger.debug("Validación visual: %d exámenes de optometría encontrados", len(examenes_visuales))
     if examenes_visuales:
         for ex in examenes_visuales:
-            logger.debug(f"  - Resultado: {ex.resultado}")
-            logger.debug(f"  - Hallazgos: {ex.hallazgos_clave}")
+            logger.debug("  - Resultado: %s", ex.resultado)
+            logger.debug("  - Hallazgos: %s", ex.hallazgos_clave)
 
     if not examenes_visuales:
         return alertas
