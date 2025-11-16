@@ -176,10 +176,8 @@ class ExcelExporter:
                     'Nombre Empleado': h.datos_empleado.nombre_completo,
                     'Tipo': rec.tipo,
                     'Descripción': rec.descripcion,
-                    'Vigencia (meses)': rec.vigencia_meses,
-                    'Requiere Seguimiento': rec.requiere_seguimiento,
-                    'Fecha Seguimiento': rec.fecha_seguimiento,
-                    'Prioridad': rec.prioridad,
+                    'Vigencia (meses)': rec.vigencia_meses if rec.vigencia_meses else '',
+                    'Requiere Seguimiento': 'Sí' if rec.requiere_seguimiento else 'No',
                 }
                 data.append(row)
 
