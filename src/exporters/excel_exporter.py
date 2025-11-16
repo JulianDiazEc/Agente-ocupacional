@@ -120,28 +120,37 @@ class ExcelExporter:
         Returns:
             DataFrame con fechas sin timezone
         """
-        for col in df.columns:
-            # Intentar convertir a datetime si es posible
-            if df[col].dtype == 'object':
+        def remove_tz_from_value(val):
+            """Helper para remover timezone de un valor individual"""
+            if val is None or pd.isna(val):
+                return val
+
+            # Si es un Timestamp con timezone
+            if isinstance(val, pd.Timestamp) and val.tz is not None:
+                return val.tz_localize(None)
+
+            # Si es un datetime con timezone
+            if isinstance(val, datetime) and val.tzinfo is not None:
+                return val.replace(tzinfo=None)
+
+            # Si es string ISO con timezone, parsearlo y remover timezone
+            if isinstance(val, str) and ('+' in val or 'Z' in val or '-' in val[-6:]):
                 try:
-                    # Intentar convertir a datetime
-                    temp = pd.to_datetime(df[col], errors='ignore')
-                    # Si se convirtió exitosamente y tiene timezone
-                    if hasattr(temp, 'dt') and hasattr(temp.dt, 'tz') and temp.dt.tz is not None:
-                        df[col] = temp.dt.tz_localize(None)
-                    elif isinstance(temp, pd.DatetimeIndex) and temp.tz is not None:
-                        df[col] = temp.tz_localize(None)
-                except:
-                    pass
-            elif pd.api.types.is_datetime64_any_dtype(df[col]):
-                # Si ya es datetime, remover timezone si tiene
-                try:
-                    if hasattr(df[col].dt, 'tz') and df[col].dt.tz is not None:
-                        df[col] = df[col].dt.tz_localize(None)
+                    parsed = pd.to_datetime(val)
+                    if hasattr(parsed, 'tz') and parsed.tz is not None:
+                        return parsed.tz_localize(None)
+                    return parsed
                 except:
                     pass
 
-        return df
+            return val
+
+        # Aplicar la función a cada celda del DataFrame
+        # En pandas moderno se usa map(), en versiones antiguas applymap()
+        if hasattr(df, 'map'):
+            return df.map(remove_tz_from_value)
+        else:
+            return df.applymap(remove_tz_from_value)
 
     def _create_summary_df(
         self,
