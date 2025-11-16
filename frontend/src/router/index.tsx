@@ -16,38 +16,45 @@ import {
 /**
  * Definición de rutas
  */
-const router = createBrowserRouter([
+const router = createBrowserRouter(
+  [
+    {
+      path: '/',
+      element: <MainLayout />,
+      children: [
+        {
+          index: true,
+          element: <HomePage />,
+        },
+        {
+          path: 'upload',
+          element: <UploadPage />,
+        },
+        {
+          path: 'results',
+          element: <ResultsListPage />,
+        },
+        {
+          path: 'results/:id',
+          element: <ResultDetailPage />,
+        },
+        {
+          path: 'stats',
+          element: <StatsPage />,
+        },
+        {
+          path: '*',
+          element: <Navigate to="/" replace />,
+        },
+      ],
+    },
+  ],
   {
-    path: '/',
-    element: <MainLayout />,
-    children: [
-      {
-        index: true,
-        element: <HomePage />,
-      },
-      {
-        path: 'upload',
-        element: <UploadPage />,
-      },
-      {
-        path: 'results',
-        element: <ResultsListPage />,
-      },
-      {
-        path: 'results/:id',
-        element: <ResultDetailPage />,
-      },
-      {
-        path: 'stats',
-        element: <StatsPage />,
-      },
-      {
-        path: '*',
-        element: <Navigate to="/" replace />,
-      },
-    ],
-  },
-]);
+    future: {
+      v7_startTransition: true,
+    },
+  }
+);
 
 /**
  * Componente AppRouter

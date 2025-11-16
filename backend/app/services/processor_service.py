@@ -53,7 +53,7 @@ class ProcessorService:
 
         try:
             # 1. Extraer texto con Azure
-            extracted_text = self.extractor.extract(str(temp_path))
+            extracted_text = self.extractor.extract(temp_path)
 
             # 2. Procesar con Claude
             processed_data = self.processor.process(extracted_text, filename)
