@@ -195,7 +195,11 @@ export const ResultDetailPage: React.FC = () => {
 
       {/* 2. Aptitud Laboral (simplificada) */}
       <AptitudeSummaryCard
-        aptitud_laboral={selectedResult.aptitud_laboral as string}
+        aptitud_laboral={
+          typeof selectedResult.aptitud_laboral === 'string'
+            ? selectedResult.aptitud_laboral
+            : selectedResult.aptitud_laboral?.resultado_aptitud
+        }
         tipo_emo={selectedResult.tipo_emo}
         confianza_extraccion={selectedResult.confianza_extraccion}
       />

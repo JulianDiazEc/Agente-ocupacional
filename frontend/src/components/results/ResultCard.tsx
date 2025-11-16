@@ -33,6 +33,11 @@ export const ResultCard: React.FC<ResultCardProps> = ({
 
   // Aptitud badge variant
   const getAptitudBadge = () => {
+    // Manejo defensivo: puede ser null, undefined, string, u objeto
+    if (!historia.aptitud_laboral) {
+      return { variant: 'default' as const, label: 'Pendiente' };
+    }
+
     const resultado =
       typeof historia.aptitud_laboral === 'string'
         ? historia.aptitud_laboral
@@ -40,7 +45,9 @@ export const ResultCard: React.FC<ResultCardProps> = ({
 
     switch (resultado) {
       case 'apto':
+      case 'apto_sin_restricciones':
         return { variant: 'success' as const, label: 'Apto' };
+      case 'apto_con_recomendaciones':
       case 'apto_con_restricciones':
         return { variant: 'warning' as const, label: 'Apto con restricciones' };
       case 'no_apto_temporal':
