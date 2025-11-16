@@ -1,5 +1,13 @@
 import React from 'react';
 import { Box, Typography, Card, CardContent, Divider } from '@mui/material';
+import {
+  LocalHospital,
+  Science,
+  FavoriteRounded,
+  FamilyRestroom,
+  CheckCircle,
+  WarningAmber,
+} from '@mui/icons-material';
 
 interface SignosVitales {
   imc?: number;
@@ -37,6 +45,7 @@ interface Alerta {
   mensaje?: string;
   descripcion?: string;
   campo_afectado?: string;
+  accion_sugerida?: string;
 }
 
 interface UnifiedClinicalCardProps {
@@ -54,137 +63,100 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
   antecedentes = [],
   alertas = [],
 }) => {
-  // Extraer hallazgos anormales
-  const extractAbnormalFindings = () => {
-    const findings: string[] = [];
+  // Función para comparar valor con rango y obtener flecha
+  const getValueArrow = (valor: number, rango?: string): { arrow: string; color: string } => {
+    if (!rango) return { arrow: '', color: '' };
 
-    // 1. Diagnósticos
-    diagnosticos.forEach((diag) => {
-      if (diag.descripcion && diag.codigo_cie10) {
-        findings.push(`${diag.descripcion} (${diag.codigo_cie10})`);
-      }
-    });
-
-    // 2. Exámenes alterados
-    const abnormalExams = examenes.filter(
-      (ex) => ex.interpretacion?.toLowerCase() === 'alterado'
-    );
-
-    abnormalExams.forEach((ex) => {
-      let examText = ex.nombre || ex.tipo_examen || 'Examen';
-
-      if (ex.valor_numerico !== undefined && ex.valor_numerico !== null) {
-        const valor = ex.valor_numerico;
-        const unidad = ex.unidad || '';
-        const rango = ex.rango_referencia || '';
-
-        let arrow = '';
-        if (rango) {
-          const match = rango.match(/(\d+\.?\d*)\s*-\s*(\d+\.?\d*)/);
-          if (match) {
-            const min = parseFloat(match[1]);
-            const max = parseFloat(match[2]);
-            if (valor > max) arrow = ' ↑';
-            else if (valor < min) arrow = ' ↓';
-          }
-        }
-
-        examText = `${examText}: ${valor} ${unidad}${arrow}${
-          rango ? ` (Ref: ${rango})` : ''
-        }`;
-      } else {
-        const detail = ex.hallazgos_clave || ex.resultado || '';
-        if (detail) examText = `${examText}: ${detail}`;
-      }
-
-      findings.push(examText);
-    });
-
-    // 3. Signos vitales fuera de rango
-    if (signos_vitales) {
-      const { imc, presion_arterial, frecuencia_cardiaca, frecuencia_respiratoria } =
-        signos_vitales;
-
-      if (imc !== undefined && imc !== null) {
-        if (imc >= 30) findings.push(`Obesidad (IMC: ${imc.toFixed(1)})`);
-        else if (imc >= 25) findings.push(`Sobrepeso (IMC: ${imc.toFixed(1)})`);
-        else if (imc < 18.5) findings.push(`Bajo peso (IMC: ${imc.toFixed(1)})`);
-      }
-
-      if (presion_arterial) {
-        const match = presion_arterial.match(/(\d+)\/(\d+)/);
-        if (match) {
-          const sistolica = parseInt(match[1]);
-          const diastolica = parseInt(match[2]);
-          if (sistolica >= 140 || diastolica >= 90) {
-            findings.push(`Presión arterial elevada (${presion_arterial})`);
-          } else if (sistolica >= 130 || diastolica >= 80) {
-            findings.push(`Presión arterial limítrofe (${presion_arterial})`);
-          }
-        }
-      }
-
-      if (frecuencia_cardiaca !== undefined && frecuencia_cardiaca !== null) {
-        if (frecuencia_cardiaca > 100) {
-          findings.push(`Taquicardia (FC: ${frecuencia_cardiaca} lpm)`);
-        } else if (frecuencia_cardiaca < 60) {
-          findings.push(`Bradicardia (FC: ${frecuencia_cardiaca} lpm)`);
-        }
-      }
-
-      if (frecuencia_respiratoria !== undefined && frecuencia_respiratoria !== null) {
-        if (frecuencia_respiratoria > 20) {
-          findings.push(`Taquipnea (FR: ${frecuencia_respiratoria} rpm)`);
-        } else if (frecuencia_respiratoria < 12) {
-          findings.push(`Bradipnea (FR: ${frecuencia_respiratoria} rpm)`);
-        }
-      }
+    // Parsear rangos tipo "0-200" o "< 200" o "> 50"
+    const rangeMatch = rango.match(/(\d+\.?\d*)\s*-\s*(\d+\.?\d*)/);
+    if (rangeMatch) {
+      const min = parseFloat(rangeMatch[1]);
+      const max = parseFloat(rangeMatch[2]);
+      if (valor > max) return { arrow: '↑', color: 'text-pink-600 font-bold' };
+      if (valor < min) return { arrow: '↓', color: 'text-gray-500' };
+    } else if (rango.includes('<')) {
+      const limit = parseFloat(rango.replace(/[<>]/g, ''));
+      if (valor > limit) return { arrow: '↑', color: 'text-pink-600 font-bold' };
+    } else if (rango.includes('>')) {
+      const limit = parseFloat(rango.replace(/[<>]/g, ''));
+      if (valor < limit) return { arrow: '↓', color: 'text-gray-500' };
     }
 
-    // 4. Antecedentes activos
-    const activeAntecedentes = antecedentes.filter((ant) => ant.activo === true);
-    const antByType: Record<string, string[]> = {
-      personales: [],
-      familiares: [],
-      otros: [],
-    };
-
-    activeAntecedentes.forEach((ant) => {
-      const desc = ant.descripcion || '';
-      if (!desc) return;
-
-      switch (ant.tipo?.toLowerCase()) {
-        case 'patologico':
-          antByType.personales.push(desc);
-          break;
-        case 'familiar':
-          antByType.familiares.push(desc);
-          break;
-        default:
-          antByType.otros.push(desc);
-      }
-    });
-
-    if (antByType.personales.length > 0) {
-      findings.push(`Personales: ${antByType.personales.join(', ')}`);
-    }
-    if (antByType.familiares.length > 0) {
-      findings.push(`Familiares: ${antByType.familiares.join(', ')}`);
-    }
-    if (antByType.otros.length > 0) {
-      findings.push(`Otros: ${antByType.otros.join(', ')}`);
-    }
-
-    return findings;
+    return { arrow: '', color: '' };
   };
+
+  // Extraer exámenes alterados
+  const examenesAlterados = examenes.filter(
+    (ex) => ex.interpretacion?.toLowerCase() === 'alterado'
+  );
+
+  // Extraer signos vitales fuera de rango
+  const signosVitalesFueraRango: string[] = [];
+  if (signos_vitales) {
+    const { imc, presion_arterial, frecuencia_cardiaca, frecuencia_respiratoria } =
+      signos_vitales;
+
+    if (imc !== undefined && imc !== null) {
+      if (imc >= 30) signosVitalesFueraRango.push(`Obesidad (IMC: ${imc.toFixed(1)})`);
+      else if (imc >= 25) signosVitalesFueraRango.push(`Sobrepeso (IMC: ${imc.toFixed(1)})`);
+      else if (imc < 18.5) signosVitalesFueraRango.push(`Bajo peso (IMC: ${imc.toFixed(1)})`);
+    }
+
+    if (presion_arterial) {
+      const match = presion_arterial.match(/(\d+)\/(\d+)/);
+      if (match) {
+        const sistolica = parseInt(match[1]);
+        const diastolica = parseInt(match[2]);
+        if (sistolica >= 140 || diastolica >= 90) {
+          signosVitalesFueraRango.push(`Presión arterial elevada (${presion_arterial})`);
+        } else if (sistolica >= 130 || diastolica >= 80) {
+          signosVitalesFueraRango.push(`Presión arterial limítrofe (${presion_arterial})`);
+        }
+      }
+    }
+
+    if (frecuencia_cardiaca !== undefined && frecuencia_cardiaca !== null) {
+      if (frecuencia_cardiaca > 100) {
+        signosVitalesFueraRango.push(`Taquicardia (FC: ${frecuencia_cardiaca} lpm)`);
+      } else if (frecuencia_cardiaca < 60) {
+        signosVitalesFueraRango.push(`Bradicardia (FC: ${frecuencia_cardiaca} lpm)`);
+      }
+    }
+
+    if (frecuencia_respiratoria !== undefined && frecuencia_respiratoria !== null) {
+      if (frecuencia_respiratoria > 20) {
+        signosVitalesFueraRango.push(`Taquipnea (FR: ${frecuencia_respiratoria} rpm)`);
+      } else if (frecuencia_respiratoria < 12) {
+        signosVitalesFueraRango.push(`Bradipnea (FR: ${frecuencia_respiratoria} rpm)`);
+      }
+    }
+  }
+
+  // Extraer antecedentes activos agrupados por tipo
+  const antecedentesActivos = antecedentes.filter((ant) => ant.activo === true);
+  const antecedentesPatologicos = antecedentesActivos.filter(
+    (ant) => ant.tipo?.toLowerCase() === 'patologico'
+  );
+  const antecedentesFamiliares = antecedentesActivos.filter(
+    (ant) => ant.tipo?.toLowerCase() === 'familiar'
+  );
+  const antecedentesOtros = antecedentesActivos.filter(
+    (ant) =>
+      ant.tipo?.toLowerCase() !== 'patologico' && ant.tipo?.toLowerCase() !== 'familiar'
+  );
 
   // Extraer exámenes normales
-  const extractNormalExams = () => {
-    return examenes.filter((ex) => ex.interpretacion?.toLowerCase() === 'normal');
-  };
+  const examenesNormales = examenes.filter(
+    (ex) => ex.interpretacion?.toLowerCase() === 'normal'
+  );
 
-  const abnormalFindings = extractAbnormalFindings();
-  const normalExams = extractNormalExams();
+  const hayContenido =
+    diagnosticos.length > 0 ||
+    examenesAlterados.length > 0 ||
+    signosVitalesFueraRango.length > 0 ||
+    antecedentesActivos.length > 0 ||
+    examenesNormales.length > 0 ||
+    alertas.length > 0;
 
   return (
     <Card className="shadow-sm border border-gray-200 mb-6">
@@ -193,39 +165,228 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
           Resumen Clínico
         </Typography>
 
-        {/* Hallazgos que requieren atención */}
-        {abnormalFindings.length > 0 && (
+        {!hayContenido && (
+          <Typography variant="body2" className="text-gray-500 italic">
+            No hay información clínica disponible
+          </Typography>
+        )}
+
+        {/* SECCIÓN: Diagnósticos */}
+        {diagnosticos.length > 0 && (
           <Box className="mb-6">
-            <Typography variant="subtitle2" className="font-semibold text-gray-700 mb-2">
-              Hallazgos que requieren atención
-            </Typography>
+            <Box className="flex items-center gap-2 mb-2">
+              <LocalHospital className="text-gray-600" fontSize="small" />
+              <Typography variant="subtitle2" className="font-semibold text-gray-900">
+                Diagnósticos
+              </Typography>
+            </Box>
             <Box component="ul" className="space-y-1 pl-5">
-              {abnormalFindings.map((finding, index) => (
+              {diagnosticos.map((diag, index) => (
                 <Typography
                   component="li"
                   key={index}
                   variant="body2"
                   className="text-gray-700"
                 >
-                  {finding}
+                  {diag.descripcion} {diag.codigo_cie10 && `(${diag.codigo_cie10})`}
                 </Typography>
               ))}
             </Box>
           </Box>
         )}
 
-        {/* Exámenes normales */}
-        {normalExams.length > 0 && (
-          <>
-            <Divider className="my-4" />
-            <Box className="mb-6">
-              <Typography variant="subtitle2" className="font-semibold text-gray-700 mb-2">
-                Parámetros dentro de rangos normales
+        {/* SECCIÓN: Exámenes Alterados */}
+        {examenesAlterados.length > 0 && (
+          <Box className="mb-6">
+            <Box className="flex items-center gap-2 mb-2">
+              <Science className="text-gray-600" fontSize="small" />
+              <Typography variant="subtitle2" className="font-semibold text-gray-900">
+                Exámenes Alterados
               </Typography>
+            </Box>
+
+            {/* Tabla para exámenes con valores numéricos */}
+            <Box className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 px-3 font-semibold text-gray-700">
+                      Examen
+                    </th>
+                    <th className="text-left py-2 px-3 font-semibold text-gray-700">
+                      Valor
+                    </th>
+                    <th className="text-left py-2 px-3 font-semibold text-gray-700">
+                      Referencia
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {examenesAlterados.map((exam, index) => {
+                    const nombre = exam.nombre || exam.tipo_examen || 'Examen';
+                    const hasNumericValue =
+                      exam.valor_numerico !== undefined && exam.valor_numerico !== null;
+
+                    if (hasNumericValue) {
+                      const { arrow, color } = getValueArrow(
+                        exam.valor_numerico!,
+                        exam.rango_referencia
+                      );
+
+                      return (
+                        <tr
+                          key={index}
+                          className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}
+                        >
+                          <td className="py-2 px-3 text-gray-700">{nombre}</td>
+                          <td className="py-2 px-3 text-gray-900">
+                            {exam.valor_numerico} {exam.unidad || ''}
+                          </td>
+                          <td className="py-2 px-3 text-gray-600">
+                            {arrow && <span className={`${color} mr-1`}>{arrow}</span>}
+                            {exam.rango_referencia || '-'}
+                          </td>
+                        </tr>
+                      );
+                    } else {
+                      // Examen sin valor numérico
+                      const detail = exam.hallazgos_clave || exam.resultado || '';
+                      return (
+                        <tr
+                          key={index}
+                          className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}
+                        >
+                          <td className="py-2 px-3 text-gray-700">{nombre}</td>
+                          <td colSpan={2} className="py-2 px-3 text-gray-700">
+                            {detail}
+                          </td>
+                        </tr>
+                      );
+                    }
+                  })}
+                </tbody>
+              </table>
+            </Box>
+          </Box>
+        )}
+
+        {/* SECCIÓN: Signos Vitales */}
+        {signosVitalesFueraRango.length > 0 && (
+          <Box className="mb-6">
+            <Box className="flex items-center gap-2 mb-2">
+              <FavoriteRounded className="text-gray-600" fontSize="small" />
+              <Typography variant="subtitle2" className="font-semibold text-gray-900">
+                Signos Vitales
+              </Typography>
+            </Box>
+            <Box component="ul" className="space-y-1 pl-5">
+              {signosVitalesFueraRango.map((signo, index) => (
+                <Typography
+                  component="li"
+                  key={index}
+                  variant="body2"
+                  className="text-gray-700"
+                >
+                  {signo}
+                </Typography>
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {/* SECCIÓN: Antecedentes Activos */}
+        {antecedentesActivos.length > 0 && (
+          <Box className="mb-6">
+            <Box className="flex items-center gap-2 mb-2">
+              <FamilyRestroom className="text-gray-600" fontSize="small" />
+              <Typography variant="subtitle2" className="font-semibold text-gray-900">
+                Antecedentes Activos
+              </Typography>
+            </Box>
+
+            {/* Personales */}
+            {antecedentesPatologicos.length > 0 && (
+              <Box className="mb-2">
+                <Typography variant="body2" className="font-medium text-gray-700">
+                  Personales:
+                </Typography>
+                <Box component="ul" className="space-y-1 pl-5 mt-1">
+                  {antecedentesPatologicos.map((ant, index) => (
+                    <Typography
+                      component="li"
+                      key={index}
+                      variant="body2"
+                      className="text-gray-700"
+                    >
+                      {ant.descripcion}
+                    </Typography>
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            {/* Familiares */}
+            {antecedentesFamiliares.length > 0 && (
+              <Box className="mb-2">
+                <Typography variant="body2" className="font-medium text-gray-700">
+                  Familiares:
+                </Typography>
+                <Box component="ul" className="space-y-1 pl-5 mt-1">
+                  {antecedentesFamiliares.map((ant, index) => (
+                    <Typography
+                      component="li"
+                      key={index}
+                      variant="body2"
+                      className="text-gray-700"
+                    >
+                      {ant.descripcion}
+                    </Typography>
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            {/* Otros */}
+            {antecedentesOtros.length > 0 && (
+              <Box className="mb-2">
+                <Typography variant="body2" className="font-medium text-gray-700">
+                  Otros:
+                </Typography>
+                <Box component="ul" className="space-y-1 pl-5 mt-1">
+                  {antecedentesOtros.map((ant, index) => (
+                    <Typography
+                      component="li"
+                      key={index}
+                      variant="body2"
+                      className="text-gray-700"
+                    >
+                      {ant.descripcion}
+                    </Typography>
+                  ))}
+                </Box>
+              </Box>
+            )}
+          </Box>
+        )}
+
+        {/* SECCIÓN: Parámetros Normales (siempre visible, sin collapse) */}
+        {examenesNormales.length > 0 && (
+          <>
+            {(diagnosticos.length > 0 ||
+              examenesAlterados.length > 0 ||
+              signosVitalesFueraRango.length > 0 ||
+              antecedentesActivos.length > 0) && <Divider className="my-4" />}
+            <Box className="mb-6">
+              <Box className="flex items-center gap-2 mb-2">
+                <CheckCircle className="text-green-600" fontSize="small" />
+                <Typography variant="subtitle2" className="font-semibold text-gray-900">
+                  Parámetros dentro de rangos normales
+                </Typography>
+              </Box>
               <Box component="ul" className="space-y-1 pl-5">
-                {normalExams.map((exam, index) => {
+                {examenesNormales.map((exam, index) => {
                   const nombre = exam.nombre || exam.tipo_examen || 'Examen';
-                  let examText = nombre;
+                  let examText = `✓ ${nombre}`;
 
                   if (exam.valor_numerico !== undefined && exam.valor_numerico !== null) {
                     const unidad = exam.unidad || '';
@@ -237,7 +398,7 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
                       component="li"
                       key={index}
                       variant="body2"
-                      className="text-gray-600"
+                      className="text-gray-600 list-none"
                     >
                       {examText}
                     </Typography>
@@ -248,39 +409,50 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
           </>
         )}
 
-        {/* Alertas de validación */}
+        {/* SECCIÓN: Alertas de Validación (siempre visible, sin collapse) */}
         {alertas.length > 0 && (
           <>
             <Divider className="my-4" />
             <Box>
-              <Typography variant="subtitle2" className="font-semibold text-gray-700 mb-2">
-                Alertas de validación
-              </Typography>
-              <Box component="ul" className="space-y-1 pl-5">
+              <Box className="flex items-center gap-2 mb-2">
+                <WarningAmber className="text-amber-600" fontSize="small" />
+                <Typography variant="subtitle2" className="font-semibold text-gray-900">
+                  Alertas de validación
+                </Typography>
+              </Box>
+              <Box component="ul" className="space-y-2 pl-5">
                 {alertas.map((alerta, index) => {
                   const campo = alerta.campo_afectado || alerta.tipo || 'Alerta';
+                  const severidad = alerta.severidad || 'baja';
                   const mensaje = alerta.descripcion || alerta.mensaje || '';
+                  const accion = alerta.accion_sugerida;
+
+                  const severidadLabel = {
+                    alta: 'Alta',
+                    media: 'Media',
+                    baja: 'Baja',
+                  }[severidad];
 
                   return (
-                    <Typography
-                      component="li"
-                      key={index}
-                      variant="body2"
-                      className="text-gray-700"
-                    >
-                      <span className="font-medium">{campo}:</span> {mensaje}
-                    </Typography>
+                    <Box component="li" key={index} className="text-gray-700">
+                      <Typography variant="body2" className="mb-1">
+                        <span className="font-medium">{campo}</span>
+                        <span className="text-gray-500 text-xs ml-2">
+                          [{severidadLabel}]
+                        </span>
+                        {mensaje && <span>: {mensaje}</span>}
+                      </Typography>
+                      {accion && (
+                        <Typography variant="body2" className="text-gray-600 pl-4">
+                          → {accion}
+                        </Typography>
+                      )}
+                    </Box>
                   );
                 })}
               </Box>
             </Box>
           </>
-        )}
-
-        {abnormalFindings.length === 0 && normalExams.length === 0 && alertas.length === 0 && (
-          <Typography variant="body2" className="text-gray-500 italic">
-            No hay información clínica disponible
-          </Typography>
         )}
       </CardContent>
     </Card>
