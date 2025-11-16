@@ -1,5 +1,5 @@
 /**
- * Página de detalle de resultado - Reorganizada con layout tipo LlamaIndex
+ * Página de detalle de resultado - Reorganizada con Resumen Clínico
  * Muestra información completa de una historia clínica procesada
  */
 
@@ -12,10 +12,10 @@ import { Alert } from '@/components/common/Alert';
 import { useResults } from '@/contexts';
 import { exportService } from '@/services';
 
-// Nuevos componentes
+// Componentes de evaluación
 import PatientHeader from '@/components/evaluation/PatientHeader';
 import AptitudeSummaryCard from '@/components/evaluation/AptitudeSummaryCard';
-import KeyFindingsCard from '@/components/evaluation/KeyFindingsCard';
+import ClinicalSummaryCard from '@/components/evaluation/ClinicalSummaryCard';
 import ValidationAlertsCard from '@/components/evaluation/ValidationAlertsCard';
 
 /**
@@ -105,7 +105,7 @@ export const ResultDetailPage: React.FC = () => {
         </Box>
       </Box>
     );
-  }
+  };
 
   /**
    * No encontrado
@@ -183,17 +183,23 @@ export const ResultDetailPage: React.FC = () => {
         examenes={selectedResult.examenes}
       />
 
-      {/* 3️⃣ Card Secundaria: Consideraciones Clínicas Clave */}
-      <KeyFindingsCard
-        signos_vitales={selectedResult.signos_vitales}
-        examenes={selectedResult.examenes}
-        diagnosticos={selectedResult.diagnosticos}
-      />
+      {/* 3️⃣ Resumen Clínico (NUEVO - reemplaza KeyFindingsCard) */}
+      <Box>
+        <Typography variant="h6" className="font-semibold text-gray-900 mb-4">
+          Resumen Clínico
+        </Typography>
+        <ClinicalSummaryCard
+          signos_vitales={selectedResult.signos_vitales}
+          examenes={selectedResult.examenes}
+          diagnosticos={selectedResult.diagnosticos}
+          antecedentes={selectedResult.antecedentes}
+        />
+      </Box>
 
-      {/* 4️⃣ Alertas de Validación */}
+      {/* 4️⃣ Alertas de Validación (MOVIDO aquí, mejorado con colapsables) */}
       <ValidationAlertsCard alertas={selectedResult.alertas_validacion} />
 
-      {/* Metadata de procesamiento (opcional, al final) */}
+      {/* 5️⃣ Metadata de procesamiento (al final) */}
       <Box className="bg-gray-50 border border-gray-200 rounded-lg p-6 mt-8">
         <Typography variant="subtitle2" className="font-semibold text-gray-700 mb-4">
           Información de Procesamiento

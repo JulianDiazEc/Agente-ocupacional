@@ -1,16 +1,28 @@
-import React from 'react';
-import { Box, Typography, Card, CardContent, Chip } from '@mui/material';
+import React, { useState } from 'react';
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Chip,
+  Collapse,
+  IconButton,
+} from '@mui/material';
 import {
   ErrorOutline,
   WarningAmber,
   InfoOutlined,
+  ExpandMore,
+  Lightbulb,
 } from '@mui/icons-material';
 
 interface Alerta {
   tipo?: string;
   severidad?: 'alta' | 'media' | 'baja';
   mensaje?: string;
+  descripcion?: string;
   campo_afectado?: string;
+  accion_sugerida?: string;
 }
 
 interface ValidationAlertsCardProps {
@@ -20,9 +32,23 @@ interface ValidationAlertsCardProps {
 const ValidationAlertsCard: React.FC<ValidationAlertsCardProps> = ({
   alertas = [],
 }) => {
+  const [expandedAlerts, setExpandedAlerts] = useState<Set<number>>(new Set());
+
   if (!alertas || alertas.length === 0) {
     return null;
   }
+
+  const toggleAlert = (index: number) => {
+    setExpandedAlerts((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  };
 
   const getSeverityConfig = (severidad?: string) => {
     switch (severidad) {
@@ -84,13 +110,25 @@ const ValidationAlertsCard: React.FC<ValidationAlertsCardProps> = ({
 
   // Agrupar alertas por severidad
   const alertasPorSeveridad = {
-    alta: alertas.filter((a) => a.severidad === 'alta'),
-    media: alertas.filter((a) => a.severidad === 'media'),
-    baja: alertas.filter((a) => a.severidad === 'baja'),
+    alta: alertas
+      .map((a, idx) => ({ ...a, originalIndex: idx }))
+      .filter((a) => a.severidad === 'alta'),
+    media: alertas
+      .map((a, idx) => ({ ...a, originalIndex: idx }))
+      .filter((a) => a.severidad === 'media'),
+    baja: alertas
+      .map((a, idx) => ({ ...a, originalIndex: idx }))
+      .filter((a) => a.severidad === 'baja'),
   };
 
+  const allAlertasOrdered = [
+    ...alertasPorSeveridad.alta,
+    ...alertasPorSeveridad.media,
+    ...alertasPorSeveridad.baja,
+  ];
+
   return (
-    <Card className="shadow-sm border border-gray-200">
+    <Card className="shadow-sm border border-gray-200 mb-6">
       <CardContent className="p-6">
         <Box className="flex items-center justify-between mb-4">
           <Typography variant="h6" className="font-semibold text-gray-900">
@@ -104,56 +142,29 @@ const ValidationAlertsCard: React.FC<ValidationAlertsCardProps> = ({
         </Box>
 
         <Box className="space-y-3">
-          {/* Alertas de severidad alta */}
-          {alertasPorSeveridad.alta.map((alerta, index) => {
+          {allAlertasOrdered.map((alerta, displayIndex) => {
             const config = getSeverityConfig(alerta.severidad);
-            return (
-              <Box
-                key={`alta-${index}`}
-                className={`${config.bgColor} border-l-4 ${config.borderColor} rounded-r p-3`}
-              >
-                <Box className="flex items-start gap-3">
-                  {config.icon}
-                  <Box className="flex-1">
-                    <Box className="flex items-center gap-2 mb-1">
-                      <Typography
-                        variant="subtitle2"
-                        className={`font-semibold ${config.color}`}
-                      >
-                        {formatCampo(alerta.campo_afectado) || formatTipo(alerta.tipo)}
-                      </Typography>
-                      <Chip
-                        label={config.label}
-                        size="small"
-                        color={config.chipColor}
-                      />
-                    </Box>
-                    <Typography variant="body2" className="text-gray-700">
-                      {alerta.mensaje}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
-            );
-          })}
+            const isExpanded = expandedAlerts.has(alerta.originalIndex);
 
-          {/* Alertas de severidad media */}
-          {alertasPorSeveridad.media.map((alerta, index) => {
-            const config = getSeverityConfig(alerta.severidad);
             return (
               <Box
-                key={`media-${index}`}
-                className={`${config.bgColor} border-l-4 ${config.borderColor} rounded-r p-3`}
+                key={alerta.originalIndex}
+                className={`${config.bgColor} border-l-4 ${config.borderColor} rounded-r transition-all`}
               >
-                <Box className="flex items-start gap-3">
-                  {config.icon}
-                  <Box className="flex-1">
-                    <Box className="flex items-center gap-2 mb-1">
+                {/* Header colapsable */}
+                <Box
+                  className="flex items-center justify-between p-3 cursor-pointer hover:bg-opacity-80"
+                  onClick={() => toggleAlert(alerta.originalIndex)}
+                >
+                  <Box className="flex items-center gap-3 flex-1">
+                    {config.icon}
+                    <Box className="flex items-center gap-2 flex-1">
                       <Typography
                         variant="subtitle2"
                         className={`font-semibold ${config.color}`}
                       >
-                        {formatCampo(alerta.campo_afectado) || formatTipo(alerta.tipo)}
+                        {formatCampo(alerta.campo_afectado) ||
+                          formatTipo(alerta.tipo)}
                       </Typography>
                       <Chip
                         label={config.label}
@@ -161,44 +172,48 @@ const ValidationAlertsCard: React.FC<ValidationAlertsCardProps> = ({
                         color={config.chipColor}
                       />
                     </Box>
-                    <Typography variant="body2" className="text-gray-700">
-                      {alerta.mensaje}
-                    </Typography>
                   </Box>
+                  <IconButton
+                    size="small"
+                    sx={{
+                      transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.3s',
+                    }}
+                  >
+                    <ExpandMore />
+                  </IconButton>
                 </Box>
-              </Box>
-            );
-          })}
 
-          {/* Alertas de severidad baja */}
-          {alertasPorSeveridad.baja.map((alerta, index) => {
-            const config = getSeverityConfig(alerta.severidad);
-            return (
-              <Box
-                key={`baja-${index}`}
-                className={`${config.bgColor} border-l-4 ${config.borderColor} rounded-r p-3`}
-              >
-                <Box className="flex items-start gap-3">
-                  {config.icon}
-                  <Box className="flex-1">
-                    <Box className="flex items-center gap-2 mb-1">
-                      <Typography
-                        variant="subtitle2"
-                        className={`font-semibold ${config.color}`}
-                      >
-                        {formatCampo(alerta.campo_afectado) || formatTipo(alerta.tipo)}
-                      </Typography>
-                      <Chip
-                        label={config.label}
-                        size="small"
-                        color={config.chipColor}
-                      />
-                    </Box>
-                    <Typography variant="body2" className="text-gray-700">
-                      {alerta.mensaje}
+                {/* Contenido expandible */}
+                <Collapse in={isExpanded}>
+                  <Box className="px-3 pb-3 pt-1 border-t border-gray-200 mt-2">
+                    {/* Descripción/Mensaje */}
+                    <Typography variant="body2" className="text-gray-700 mb-2">
+                      {alerta.descripcion || alerta.mensaje || 'Sin descripción'}
                     </Typography>
+
+                    {/* Acción sugerida */}
+                    {alerta.accion_sugerida && (
+                      <Box className="flex items-start gap-2 mt-3 p-2 bg-white bg-opacity-50 rounded">
+                        <Lightbulb
+                          className="text-amber-600"
+                          sx={{ fontSize: 20 }}
+                        />
+                        <Box>
+                          <Typography
+                            variant="caption"
+                            className="font-semibold text-gray-600 block"
+                          >
+                            Acción sugerida:
+                          </Typography>
+                          <Typography variant="body2" className="text-gray-700">
+                            {alerta.accion_sugerida}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
                   </Box>
-                </Box>
+                </Collapse>
               </Box>
             );
           })}
