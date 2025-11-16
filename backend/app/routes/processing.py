@@ -62,6 +62,8 @@ def process_person():
     Body (multipart/form-data):
         files[]: lista de archivos PDF
         person_id: ID de la persona (opcional)
+        empresa: Nombre de la empresa (requerido)
+        documento: Documento del empleado (requerido)
 
     Returns:
         JSON con la historia clínica consolidada
@@ -72,9 +74,18 @@ def process_person():
 
     files = request.files.getlist('files[]')
     person_id = request.form.get('person_id', 'consolidated')
+    empresa = request.form.get('empresa', '')
+    documento = request.form.get('documento', '')
 
     if len(files) == 0:
         return jsonify({'error': 'Lista de archivos vacía'}), 400
+
+    # Validar campos requeridos
+    if not empresa or not empresa.strip():
+        return jsonify({'error': 'El campo empresa es requerido'}), 400
+
+    if not documento or not documento.strip():
+        return jsonify({'error': 'El campo documento es requerido'}), 400
 
     # Validar cada archivo
     for file in files:
@@ -85,7 +96,12 @@ def process_person():
 
     try:
         # Procesar y consolidar documentos
-        result = processor_service.process_person_documents(files, person_id)
+        result = processor_service.process_person_documents(
+            files,
+            person_id,
+            empresa=empresa.strip(),
+            documento=documento.strip()
+        )
         return jsonify(result), 200
 
     except Exception:

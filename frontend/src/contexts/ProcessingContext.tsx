@@ -12,6 +12,15 @@ import { HistoriaClinicaProcesada, HistoriaClinicaConsolidada } from '@/types';
 export type ProcessingStatus = 'idle' | 'uploading' | 'processing' | 'success' | 'error';
 
 /**
+ * Metadata del empleado
+ */
+export interface EmpleadoMetadata {
+  personId?: string;
+  empresa: string;
+  documento: string;
+}
+
+/**
  * Estado del contexto
  */
 interface ProcessingState {
@@ -24,7 +33,7 @@ interface ProcessingState {
 
   // Acciones
   processDocument: (file: File) => Promise<void>;
-  processPersonDocuments: (files: File[], personId?: string) => Promise<void>;
+  processPersonDocuments: (files: File[], metadata: EmpleadoMetadata) => Promise<void>;
   reset: () => void;
 }
 
@@ -83,7 +92,7 @@ export const ProcessingProvider: React.FC<ProcessingProviderProps> = ({ children
   /**
    * Procesar múltiples documentos de una persona
    */
-  const processPersonDocuments = useCallback(async (files: File[], personId?: string) => {
+  const processPersonDocuments = useCallback(async (files: File[], metadata: EmpleadoMetadata) => {
     try {
       setStatus('uploading');
       setProgress(0);
@@ -112,8 +121,8 @@ export const ProcessingProvider: React.FC<ProcessingProviderProps> = ({ children
         processed += batch.length;
       }
 
-      // Llamar al servicio con todos los archivos
-      const consolidatedResult = await processingService.processPersonDocuments(files, personId);
+      // Llamar al servicio con todos los archivos y metadata
+      const consolidatedResult = await processingService.processPersonDocuments(files, metadata);
 
       setProgress(100);
       setStatus('success');

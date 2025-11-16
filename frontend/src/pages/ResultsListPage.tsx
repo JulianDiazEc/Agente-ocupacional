@@ -51,11 +51,11 @@ export const ResultsListPage: React.FC = () => {
   };
 
   /**
-   * Exportar todos los resultados
+   * Exportar todos los resultados (sin filtros)
    */
   const handleExportAll = async () => {
-    const ids = filteredResults.map((r) => r.id_procesamiento);
-    await exportService.exportToExcel(ids);
+    // Pasar undefined para exportar TODOS los resultados (sin filtros)
+    await exportService.exportToExcel();
   };
 
   /**
@@ -87,11 +87,14 @@ export const ResultsListPage: React.FC = () => {
           >
             Actualizar
           </Button>
-          {filteredResults.length > 0 && (
-            <Button variant="outline" icon={<Download />} onClick={handleExportAll}>
-              Exportar Todos
-            </Button>
-          )}
+          <Button
+            variant="primary"
+            icon={<Download />}
+            onClick={handleExportAll}
+            disabled={loading}
+          >
+            Exportar Todo a Excel
+          </Button>
         </div>
       </div>
 

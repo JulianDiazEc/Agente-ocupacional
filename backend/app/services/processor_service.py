@@ -91,7 +91,9 @@ class ProcessorService:
     def process_person_documents(
         self,
         files: List[FileStorage],
-        person_id: str
+        person_id: str,
+        empresa: str = None,
+        documento: str = None
     ) -> Dict[str, Any]:
         """
         Procesar múltiples documentos de una persona y consolidar
@@ -99,6 +101,8 @@ class ProcessorService:
         Args:
             files: Lista de archivos PDF
             person_id: ID de la persona
+            empresa: Nombre de la empresa
+            documento: Documento del empleado
 
         Returns:
             JSON consolidado
@@ -116,6 +120,16 @@ class ProcessorService:
         # Guardar consolidado
         file_id = str(uuid.uuid4())
         consolidated['id_procesamiento'] = file_id
+
+        # Agregar metadata de empresa y documento en datos_empleado
+        if 'datos_empleado' not in consolidated:
+            consolidated['datos_empleado'] = {}
+
+        if empresa:
+            consolidated['datos_empleado']['empresa'] = empresa
+        if documento:
+            consolidated['datos_empleado']['documento'] = documento
+
         consolidated_filename = f"{file_id}.json"
         consolidated_path = self.processed_folder / consolidated_filename
 

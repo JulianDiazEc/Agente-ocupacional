@@ -8,6 +8,7 @@ import {
   HistoriaClinicaProcesada,
   HistoriaClinicaConsolidada,
 } from '@/types';
+import { EmpleadoMetadata } from '@/contexts/ProcessingContext';
 
 /**
  * Servicio de procesamiento
@@ -37,11 +38,13 @@ export const processingService = {
    */
   async processPersonDocuments(
     files: File[],
-    personId?: string
+    metadata: EmpleadoMetadata
   ): Promise<HistoriaClinicaConsolidada> {
     const formData = createFormData({
       files,
-      person_id: personId || 'consolidated',
+      person_id: metadata.personId || 'consolidated',
+      empresa: metadata.empresa,
+      documento: metadata.documento,
     });
 
     const response = await api.post<HistoriaClinicaConsolidada>(
