@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, CircularProgress, Typography, Button as MuiButton } from '@mui/material';
-import { ArrowBack, Download, FileText } from '@mui/icons-material';
+import { ArrowBack, Download, Description } from '@mui/icons-material';
 import { Button } from '@/components/common/Button';
 import { Alert } from '@/components/common/Alert';
 import { useResults } from '@/contexts';
@@ -113,7 +113,7 @@ export const ResultDetailPage: React.FC = () => {
   if (!selectedResult) {
     return (
       <Box className="max-w-2xl mx-auto text-center py-12">
-        <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+        <Description sx={{ fontSize: 64, color: 'rgb(209 213 219)', mb: 2 }} />
         <Typography variant="h5" className="font-bold text-gray-900 mb-2">
           Resultado no encontrado
         </Typography>
