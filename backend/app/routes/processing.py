@@ -4,10 +4,13 @@ Endpoints para procesamiento de historias clínicas
 from flask import Blueprint, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 import os
+import logging
 from pathlib import Path
 
 from app.services.processor_service import ProcessorService
 from app.utils.validators import allowed_file, validate_file_size
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('processing', __name__)
 processor_service = ProcessorService()
@@ -46,8 +49,9 @@ def process_document():
         result = processor_service.process_single_document(file)
         return jsonify(result), 200
 
-    except Exception as e:
-        return jsonify({'error': 'Error al procesar documento: ' + str(e)}), 500
+    except Exception:
+        logger.exception("Error al procesar documento")
+        return jsonify({'error': 'Error al procesar documento.'}), 500
 
 
 @bp.route('/process-person', methods=['POST'])
@@ -84,8 +88,9 @@ def process_person():
         result = processor_service.process_person_documents(files, person_id)
         return jsonify(result), 200
 
-    except Exception as e:
-        return jsonify({'error': 'Error al procesar documentos: ' + str(e)}), 500
+    except Exception:
+        logger.exception("Error al procesar documentos")
+        return jsonify({'error': 'Error al procesar documentos.'}), 500
 
 
 @bp.route('/results', methods=['GET'])
@@ -99,8 +104,9 @@ def get_all_results():
     try:
         results = processor_service.get_all_results()
         return jsonify(results), 200
-    except Exception as e:
-        return jsonify({'error': 'Error al obtener resultados: ' + str(e)}), 500
+    except Exception:
+        logger.exception("Error al obtener resultados")
+        return jsonify({'error': 'Error al obtener resultados.'}), 500
 
 
 @bp.route('/results/<result_id>', methods=['GET'])
@@ -120,8 +126,9 @@ def get_result(result_id):
             return jsonify(result), 200
         else:
             return jsonify({'error': 'Resultado no encontrado'}), 404
-    except Exception as e:
-        return jsonify({'error': 'Error al obtener resultado: ' + str(e)}), 500
+    except Exception:
+        logger.exception("Error al obtener resultado")
+        return jsonify({'error': 'Error al obtener resultado.'}), 500
 
 
 @bp.route('/export/excel', methods=['POST'])
@@ -147,8 +154,9 @@ def export_to_excel():
             as_attachment=True,
             download_name='resultados_hc.xlsx'
         )
-    except Exception as e:
-        return jsonify({'error': 'Error al exportar a Excel: ' + str(e)}), 500
+    except Exception:
+        logger.exception("Error al exportar a Excel")
+        return jsonify({'error': 'Error al exportar a Excel.'}), 500
 
 
 @bp.route('/stats', methods=['GET'])
@@ -162,5 +170,6 @@ def get_statistics():
     try:
         stats = processor_service.get_statistics()
         return jsonify(stats), 200
-    except Exception as e:
-        return jsonify({'error': 'Error al obtener estadísticas: ' + str(e)}), 500
+    except Exception:
+        logger.exception("Error al obtener estadísticas")
+        return jsonify({'error': 'Error al obtener estadísticas.'}), 500
