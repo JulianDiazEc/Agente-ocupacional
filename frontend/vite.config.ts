@@ -51,6 +51,58 @@ function removeModernColorsPlugin() {
   return {
     name: 'remove-modern-colors',
     enforce: 'post' as const,
+
+    // Para modo desarrollo: transformar CSS en tiempo real
+    transform(code: string, id: string) {
+      if (id.endsWith('.css') || id.includes('?inline') || id.includes('tailwind')) {
+        let css = code;
+
+        // Convertir oklch() a rgb()
+        css = css.replace(/oklch\(([\d.]+)%\s+([\d.]+)\s+([\d.]+)\)/g, (match, l, c, h) => {
+          return oklchToRgb(parseFloat(l), parseFloat(c), parseFloat(h));
+        });
+
+        // Eliminar bloques @supports con color-mix
+        const colorMixPattern = /@supports\s*\([^)]*color-mix\(/g;
+        let execMatch;
+
+        while ((execMatch = colorMixPattern.exec(css)) !== null) {
+          const startIndex = execMatch.index;
+          let braceCount = 0;
+          let endIndex = startIndex;
+
+          for (let i = startIndex; i < css.length; i++) {
+            if (css[i] === '{') {
+              braceCount = 1;
+              endIndex = i + 1;
+              break;
+            }
+          }
+
+          for (let i = endIndex; i < css.length && braceCount > 0; i++) {
+            if (css[i] === '{') braceCount++;
+            if (css[i] === '}') braceCount--;
+            if (braceCount === 0) {
+              endIndex = i + 1;
+              break;
+            }
+          }
+
+          css = css.substring(0, startIndex) + css.substring(endIndex);
+          colorMixPattern.lastIndex = startIndex;
+        }
+
+        // Reemplazar "in oklab" con "in srgb"
+        css = css.replace(/in oklab/g, 'in srgb');
+
+        if (css !== code) {
+          return { code: css, map: null };
+        }
+      }
+      return null;
+    },
+
+    // Para modo producción: transformar bundle final
     generateBundle(_options: any, bundle: any) {
       for (const fileName in bundle) {
         const file = bundle[fileName];
