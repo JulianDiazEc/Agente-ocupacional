@@ -1,11 +1,11 @@
 /**
  * Página de carga de documentos
- * Permite subir PDFs individuales o múltiples para consolidación
+ * Enfocada en consolidación de múltiples documentos por persona
  */
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, Users, AlertCircle } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
 import { Alert } from '@/components/common/Alert';
@@ -15,19 +15,13 @@ import { UploadProgress } from '@/components/upload/UploadProgress';
 import { useProcessing } from '@/contexts';
 
 /**
- * Tipo de carga
- */
-type UploadMode = 'single' | 'multiple';
-
-/**
  * Componente UploadPage
  */
 export const UploadPage: React.FC = () => {
   const navigate = useNavigate();
-  const { status, progress, currentFile, error, result, processDocument, processPersonDocuments, reset } =
+  const { status, progress, currentFile, error, result, processPersonDocuments, reset } =
     useProcessing();
 
-  const [mode, setMode] = useState<UploadMode>('single');
   const [files, setFiles] = useState<File[]>([]);
   const [personId, setPersonId] = useState('');
 
@@ -50,12 +44,7 @@ export const UploadPage: React.FC = () => {
    */
   const handleProcess = async () => {
     if (files.length === 0) return;
-
-    if (mode === 'single' && files.length === 1) {
-      await processDocument(files[0]);
-    } else {
-      await processPersonDocuments(files, personId || undefined);
-    }
+    await processPersonDocuments(files, personId || undefined);
   };
 
   /**
@@ -94,161 +83,166 @@ export const UploadPage: React.FC = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="text-center">
-        <div className="inline-flex items-center justify-center w-12 h-12 bg-pink-100 rounded-full mb-3">
-          <Upload className="w-6 h-6 text-pink-500" />
+        <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mb-3">
+          <Upload className="w-6 h-6 text-blue-600" />
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Cargar Historias Clínicas
+          Procesar Evaluación Médica Ocupacional
         </h1>
         <p className="text-gray-600">
-          Sube documentos PDF para procesarlos con IA
+          Sube uno o más documentos PDF de un paciente para generar una historia clínica consolidada
         </p>
       </div>
 
-      {/* Modo de carga */}
-      <Card variant="outlined">
-        <div className="flex items-center justify-center gap-4">
-          <Button
-            variant={mode === 'single' ? 'primary' : 'outline'}
-            icon={<FileText />}
-            onClick={() => {
-              setMode('single');
-              setFiles([]);
-            }}
-            disabled={status === 'uploading' || status === 'processing'}
-          >
-            Documento Individual
-          </Button>
-          <Button
-            variant={mode === 'multiple' ? 'primary' : 'outline'}
-            icon={<Users />}
-            onClick={() => {
-              setMode('multiple');
-              setFiles([]);
-            }}
-            disabled={status === 'uploading' || status === 'processing'}
-          >
-            Múltiples Documentos (Consolidado)
-          </Button>
-        </div>
-      </Card>
-
-      {/* Info del modo */}
-      {mode === 'multiple' && (
-        <Alert severity="baja" icon={<AlertCircle />}>
-          <p className="font-medium">Modo Consolidado</p>
-          <p className="text-sm mt-1">
-            Sube múltiples documentos de la misma persona para consolidar la información en una sola
-            historia clínica.
-          </p>
-        </Alert>
-      )}
-
-      {/* Person ID (solo para múltiples) */}
-      {mode === 'multiple' && (
-        <Card variant="outlined">
-          <div>
-            <label htmlFor="personId" className="block text-sm font-medium text-gray-700 mb-2">
-              ID de Persona (opcional)
-            </label>
-            <input
-              type="text"
-              id="personId"
-              value={personId}
-              onChange={(e) => setPersonId(e.target.value)}
-              placeholder="Ej: 123456789"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-              disabled={status === 'uploading' || status === 'processing'}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Opcional: Identificador único para agrupar documentos de la misma persona
-            </p>
-          </div>
-        </Card>
-      )}
-
-      {/* Dropzone */}
-      {status !== 'success' && (
-        <FileDropzone
-          maxFiles={mode === 'single' ? 1 : 10}
-          onFilesChange={handleFilesChange}
-          disabled={status === 'uploading' || status === 'processing'}
-        />
-      )}
-
-      {/* Lista de archivos */}
-      {files.length > 0 && status !== 'success' && (
-        <Card variant="outlined" title="Archivos seleccionados">
-          <FileList
-            files={files}
-            onRemove={handleRemoveFile}
-            disabled={status === 'uploading' || status === 'processing'}
-          />
-        </Card>
-      )}
-
-      {/* Progreso */}
-      {(status === 'uploading' || status === 'processing') && (
+      {/* Estados de procesamiento */}
+      {status === 'processing' && (
         <UploadProgress
           progress={progress}
-          status={status}
-          currentFile={currentFile || undefined}
+          currentFile={currentFile}
           totalFiles={files.length}
         />
       )}
 
-      {/* Error */}
-      {status === 'error' && error && (
-        <Alert severity="alta" closeable onClose={handleReset}>
-          <p className="font-medium">Error al procesar</p>
+      {status === 'success' && (
+        <Alert severity="baja">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5" />
+            <p className="font-medium">¡Procesamiento exitoso!</p>
+          </div>
+          <p className="text-sm mt-1">
+            La historia clínica consolidada ha sido procesada correctamente. Redirigiendo...
+          </p>
+        </Alert>
+      )}
+
+      {error && (
+        <Alert severity="alta">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            <p className="font-medium">Error al procesar documentos</p>
+          </div>
           <p className="text-sm mt-1">{error}</p>
         </Alert>
       )}
 
-      {/* Success */}
-      {status === 'success' && result && (
-        <Card variant="filled" className="bg-green-50 border-green-200">
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-3">
-              <FileText className="w-6 h-6 text-green-600" />
+      {/* Formulario de carga */}
+      {status === 'idle' && (
+        <>
+          <Card variant="outlined">
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ID del Paciente (opcional)
+              </label>
+              <input
+                type="text"
+                value={personId}
+                onChange={(e) => setPersonId(e.target.value)}
+                placeholder="Ej: CC-12345678, HC-001"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Si no lo especificas, se generará automáticamente un ID único
+              </p>
             </div>
-            <h3 className="text-lg font-semibold text-green-900 mb-2">
-              ¡Procesamiento Exitoso!
-            </h3>
-            <p className="text-green-700 mb-4">
-              {mode === 'single'
-                ? 'El documento ha sido procesado correctamente'
-                : `Se procesaron ${files.length} documentos y se consolidó la información`}
-            </p>
-            <div className="flex items-center justify-center gap-3">
-              <Button variant="primary" onClick={handleViewResult}>
-                Ver Resultado
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Documentos del Paciente
+              </label>
+              <FileDropzone
+                onFilesChange={handleFilesChange}
+                multiple={true}
+                maxFiles={10}
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                Puedes subir hasta 10 PDFs (máx. 10MB cada uno). Todos los documentos se
+                consolidarán en una única historia clínica.
+              </p>
+            </div>
+
+            {files.length > 0 && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Archivos seleccionados ({files.length})
+                </label>
+                <FileList files={files} onRemove={handleRemoveFile} />
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+              <div className="text-sm text-gray-600">
+                {files.length > 0 ? (
+                  <span className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    {files.length} documento{files.length !== 1 ? 's' : ''} listo
+                    {files.length !== 1 ? 's' : ''} para procesar
+                  </span>
+                ) : (
+                  <span className="text-gray-400">
+                    Selecciona al menos un documento para comenzar
+                  </span>
+                )}
+              </div>
+              <Button
+                variant="primary"
+                icon={<Upload />}
+                onClick={handleProcess}
+                disabled={files.length === 0}
+              >
+                Procesar Documentos
               </Button>
-              <Button variant="outline" onClick={handleReset}>
-                Procesar Otro
-              </Button>
+            </div>
+          </Card>
+
+          {/* Info adicional */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <svg
+                  className="w-5 h-5 text-blue-600"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-blue-900 mb-1">
+                  ¿Cómo funciona la consolidación?
+                </h3>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• Todos los documentos del paciente se procesan individualmente</li>
+                  <li>• Los diagnósticos, exámenes y antecedentes se combinan</li>
+                  <li>• Se eliminan duplicados y se prioriza la información más confiable</li>
+                  <li>• El resultado es una historia clínica única y completa</li>
+                </ul>
+              </div>
             </div>
           </div>
-        </Card>
+        </>
       )}
 
-      {/* Botón de procesamiento */}
-      {files.length > 0 && status !== 'success' && status !== 'uploading' && status !== 'processing' && (
-        <div className="flex items-center justify-center gap-3">
-          <Button
-            variant="primary"
-            size="lg"
-            icon={<Upload />}
-            onClick={handleProcess}
-            disabled={files.length === 0}
-          >
-            Procesar {files.length} {files.length === 1 ? 'Documento' : 'Documentos'}
+      {/* Acciones post-procesamiento */}
+      {status === 'success' && (
+        <div className="flex items-center justify-center gap-4">
+          <Button variant="outline" onClick={handleReset}>
+            Procesar otro paciente
           </Button>
-          {files.length > 0 && (
-            <Button variant="outline" size="lg" onClick={() => setFiles([])}>
-              Limpiar
-            </Button>
-          )}
+          <Button variant="primary" onClick={handleViewResult}>
+            Ver resultado ahora
+          </Button>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center justify-center">
+          <Button variant="outline" onClick={handleReset}>
+            Reintentar
+          </Button>
         </div>
       )}
     </div>
