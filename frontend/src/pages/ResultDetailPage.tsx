@@ -151,22 +151,45 @@ export const ResultDetailPage: React.FC = () => {
         </Box>
         <Box className="flex items-center gap-2">
           <MuiButton
-            variant="outlined"
+            variant="contained"
             startIcon={<PictureAsPdf />}
             onClick={handleExportPDF}
             disabled={exporting}
-            size="small"
+            size="medium"
+            sx={{
+              bgcolor: '#EC4899',
+              color: 'white',
+              '&:hover': {
+                bgcolor: '#db2777',
+              },
+              '&:disabled': {
+                bgcolor: '#fce7f3',
+                color: '#f9a8d4',
+              },
+            }}
           >
-            PDF
+            Exportar PDF
           </MuiButton>
           <MuiButton
             variant="outlined"
             startIcon={<Download />}
             onClick={handleExportExcel}
             disabled={exporting}
-            size="small"
+            size="medium"
+            sx={{
+              borderColor: '#EC4899',
+              color: '#EC4899',
+              '&:hover': {
+                borderColor: '#db2777',
+                bgcolor: 'rgba(236, 72, 153, 0.04)',
+              },
+              '&:disabled': {
+                borderColor: '#fce7f3',
+                color: '#f9a8d4',
+              },
+            }}
           >
-            Excel
+            Exportar Excel
           </MuiButton>
         </Box>
       </Box>
