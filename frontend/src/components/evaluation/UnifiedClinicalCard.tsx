@@ -171,35 +171,137 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
           </Typography>
         )}
 
-        {/* SECCIÓN: Diagnósticos */}
-        {diagnosticos.length > 0 && (
-          <Box className="mb-6">
-            <Box className="flex items-center gap-2 mb-2">
-              <LocalHospital className="text-gray-600" fontSize="small" />
-              <Typography variant="subtitle2" className="font-semibold text-gray-900">
-                Diagnósticos
-              </Typography>
-            </Box>
-            <Box component="ul" className="space-y-1 pl-5">
-              {diagnosticos.map((diag, index) => (
-                <Typography
-                  component="li"
-                  key={index}
-                  variant="body2"
-                  className="text-gray-700"
-                >
-                  {diag.descripcion} {diag.codigo_cie10 && `(${diag.codigo_cie10})`}
+        {/* PRIMERA FILA: 3 Columnas - Diagnósticos | Signos Vitales | Antecedentes */}
+        <Box className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          {/* COLUMNA 1: Diagnósticos */}
+          {diagnosticos.length > 0 && (
+            <Box>
+              <Box className="flex items-center gap-2 mb-3">
+                <LocalHospital className="text-gray-700" fontSize="small" />
+                <Typography variant="subtitle2" className="font-semibold text-gray-900">
+                  Diagnósticos
                 </Typography>
-              ))}
+              </Box>
+              <Box component="ul" className="space-y-1.5 pl-5">
+                {diagnosticos.map((diag, index) => (
+                  <Typography
+                    component="li"
+                    key={index}
+                    variant="body2"
+                    className="text-gray-800"
+                  >
+                    {diag.descripcion} {diag.codigo_cie10 && `(${diag.codigo_cie10})`}
+                  </Typography>
+                ))}
+              </Box>
             </Box>
-          </Box>
-        )}
+          )}
 
-        {/* SECCIÓN: Exámenes Alterados */}
+          {/* COLUMNA 2: Signos Vitales */}
+          {signosVitalesFueraRango.length > 0 && (
+            <Box>
+              <Box className="flex items-center gap-2 mb-3">
+                <FavoriteRounded className="text-gray-700" fontSize="small" />
+                <Typography variant="subtitle2" className="font-semibold text-gray-900">
+                  Signos Vitales
+                </Typography>
+              </Box>
+              <Box component="ul" className="space-y-1.5 pl-5">
+                {signosVitalesFueraRango.map((signo, index) => (
+                  <Typography
+                    component="li"
+                    key={index}
+                    variant="body2"
+                    className="text-gray-800"
+                  >
+                    {signo}
+                  </Typography>
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {/* COLUMNA 3: Antecedentes Activos */}
+          {antecedentesActivos.length > 0 && (
+            <Box>
+              <Box className="flex items-center gap-2 mb-3">
+                <FamilyRestroom className="text-gray-700" fontSize="small" />
+                <Typography variant="subtitle2" className="font-semibold text-gray-900">
+                  Antecedentes
+                </Typography>
+              </Box>
+
+              {/* Personales */}
+              {antecedentesPatologicos.length > 0 && (
+                <Box className="mb-3">
+                  <Typography variant="body2" className="font-medium text-gray-800 mb-1">
+                    Personales:
+                  </Typography>
+                  <Box component="ul" className="space-y-1 pl-5">
+                    {antecedentesPatologicos.map((ant, index) => (
+                      <Typography
+                        component="li"
+                        key={index}
+                        variant="body2"
+                        className="text-gray-800"
+                      >
+                        {ant.descripcion}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Familiares */}
+              {antecedentesFamiliares.length > 0 && (
+                <Box className="mb-3">
+                  <Typography variant="body2" className="font-medium text-gray-800 mb-1">
+                    Familiares:
+                  </Typography>
+                  <Box component="ul" className="space-y-1 pl-5">
+                    {antecedentesFamiliares.map((ant, index) => (
+                      <Typography
+                        component="li"
+                        key={index}
+                        variant="body2"
+                        className="text-gray-800"
+                      >
+                        {ant.descripcion}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Otros */}
+              {antecedentesOtros.length > 0 && (
+                <Box>
+                  <Typography variant="body2" className="font-medium text-gray-800 mb-1">
+                    Otros:
+                  </Typography>
+                  <Box component="ul" className="space-y-1 pl-5">
+                    {antecedentesOtros.map((ant, index) => (
+                      <Typography
+                        component="li"
+                        key={index}
+                        variant="body2"
+                        className="text-gray-800"
+                      >
+                        {ant.descripcion}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          )}
+        </Box>
+
+        {/* SECCIÓN: Exámenes Alterados (ancho completo) */}
         {examenesAlterados.length > 0 && (
           <Box className="mb-6">
-            <Box className="flex items-center gap-2 mb-2">
-              <Science className="text-gray-600" fontSize="small" />
+            <Box className="flex items-center gap-2 mb-3">
+              <Science className="text-gray-700" fontSize="small" />
               <Typography variant="subtitle2" className="font-semibold text-gray-900">
                 Exámenes Alterados
               </Typography>
@@ -210,13 +312,13 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 px-3 font-semibold text-gray-700">
+                    <th className="text-left py-2 px-3 font-semibold text-gray-800">
                       Examen
                     </th>
-                    <th className="text-left py-2 px-3 font-semibold text-gray-700">
+                    <th className="text-left py-2 px-3 font-semibold text-gray-800">
                       Valor
                     </th>
-                    <th className="text-left py-2 px-3 font-semibold text-gray-700">
+                    <th className="text-left py-2 px-3 font-semibold text-gray-800">
                       Referencia
                     </th>
                   </tr>
@@ -238,11 +340,11 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
                           key={index}
                           className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}
                         >
-                          <td className="py-2 px-3 text-gray-700">{nombre}</td>
-                          <td className="py-2 px-3 text-gray-900">
+                          <td className="py-2 px-3 text-gray-800">{nombre}</td>
+                          <td className="py-2 px-3 text-gray-900 font-medium">
                             {exam.valor_numerico} {exam.unidad || ''}
                           </td>
-                          <td className="py-2 px-3 text-gray-600">
+                          <td className="py-2 px-3 text-gray-700">
                             {arrow && <span className={`${color} mr-1`}>{arrow}</span>}
                             {exam.rango_referencia || '-'}
                           </td>
@@ -256,8 +358,8 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
                           key={index}
                           className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}
                         >
-                          <td className="py-2 px-3 text-gray-700">{nombre}</td>
-                          <td colSpan={2} className="py-2 px-3 text-gray-700">
+                          <td className="py-2 px-3 text-gray-800">{nombre}</td>
+                          <td colSpan={2} className="py-2 px-3 text-gray-800">
                             {detail}
                           </td>
                         </tr>
@@ -270,105 +372,6 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
           </Box>
         )}
 
-        {/* SECCIÓN: Signos Vitales */}
-        {signosVitalesFueraRango.length > 0 && (
-          <Box className="mb-6">
-            <Box className="flex items-center gap-2 mb-2">
-              <FavoriteRounded className="text-gray-600" fontSize="small" />
-              <Typography variant="subtitle2" className="font-semibold text-gray-900">
-                Signos Vitales
-              </Typography>
-            </Box>
-            <Box component="ul" className="space-y-1 pl-5">
-              {signosVitalesFueraRango.map((signo, index) => (
-                <Typography
-                  component="li"
-                  key={index}
-                  variant="body2"
-                  className="text-gray-700"
-                >
-                  {signo}
-                </Typography>
-              ))}
-            </Box>
-          </Box>
-        )}
-
-        {/* SECCIÓN: Antecedentes Activos */}
-        {antecedentesActivos.length > 0 && (
-          <Box className="mb-6">
-            <Box className="flex items-center gap-2 mb-2">
-              <FamilyRestroom className="text-gray-600" fontSize="small" />
-              <Typography variant="subtitle2" className="font-semibold text-gray-900">
-                Antecedentes Activos
-              </Typography>
-            </Box>
-
-            {/* Personales */}
-            {antecedentesPatologicos.length > 0 && (
-              <Box className="mb-2">
-                <Typography variant="body2" className="font-medium text-gray-700">
-                  Personales:
-                </Typography>
-                <Box component="ul" className="space-y-1 pl-5 mt-1">
-                  {antecedentesPatologicos.map((ant, index) => (
-                    <Typography
-                      component="li"
-                      key={index}
-                      variant="body2"
-                      className="text-gray-700"
-                    >
-                      {ant.descripcion}
-                    </Typography>
-                  ))}
-                </Box>
-              </Box>
-            )}
-
-            {/* Familiares */}
-            {antecedentesFamiliares.length > 0 && (
-              <Box className="mb-2">
-                <Typography variant="body2" className="font-medium text-gray-700">
-                  Familiares:
-                </Typography>
-                <Box component="ul" className="space-y-1 pl-5 mt-1">
-                  {antecedentesFamiliares.map((ant, index) => (
-                    <Typography
-                      component="li"
-                      key={index}
-                      variant="body2"
-                      className="text-gray-700"
-                    >
-                      {ant.descripcion}
-                    </Typography>
-                  ))}
-                </Box>
-              </Box>
-            )}
-
-            {/* Otros */}
-            {antecedentesOtros.length > 0 && (
-              <Box className="mb-2">
-                <Typography variant="body2" className="font-medium text-gray-700">
-                  Otros:
-                </Typography>
-                <Box component="ul" className="space-y-1 pl-5 mt-1">
-                  {antecedentesOtros.map((ant, index) => (
-                    <Typography
-                      component="li"
-                      key={index}
-                      variant="body2"
-                      className="text-gray-700"
-                    >
-                      {ant.descripcion}
-                    </Typography>
-                  ))}
-                </Box>
-              </Box>
-            )}
-          </Box>
-        )}
-
         {/* SECCIÓN: Parámetros Normales (siempre visible, sin collapse) */}
         {examenesNormales.length > 0 && (
           <>
@@ -377,13 +380,13 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
               signosVitalesFueraRango.length > 0 ||
               antecedentesActivos.length > 0) && <Divider className="my-4" />}
             <Box className="mb-6">
-              <Box className="flex items-center gap-2 mb-2">
+              <Box className="flex items-center gap-2 mb-3">
                 <CheckCircle className="text-green-600" fontSize="small" />
                 <Typography variant="subtitle2" className="font-semibold text-gray-900">
                   Parámetros dentro de rangos normales
                 </Typography>
               </Box>
-              <Box component="ul" className="space-y-1 pl-5">
+              <Box component="ul" className="space-y-1.5 pl-5">
                 {examenesNormales.map((exam, index) => {
                   const nombre = exam.nombre || exam.tipo_examen || 'Examen';
                   let examText = `✓ ${nombre}`;
@@ -398,7 +401,7 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
                       component="li"
                       key={index}
                       variant="body2"
-                      className="text-gray-600 list-none"
+                      className="text-gray-700 list-none"
                     >
                       {examText}
                     </Typography>
@@ -414,7 +417,7 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
           <>
             <Divider className="my-4" />
             <Box>
-              <Box className="flex items-center gap-2 mb-2">
+              <Box className="flex items-center gap-2 mb-3">
                 <WarningAmber className="text-amber-600" fontSize="small" />
                 <Typography variant="subtitle2" className="font-semibold text-gray-900">
                   Alertas de validación
@@ -434,16 +437,16 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
                   }[severidad];
 
                   return (
-                    <Box component="li" key={index} className="text-gray-700">
+                    <Box component="li" key={index} className="text-gray-800">
                       <Typography variant="body2" className="mb-1">
                         <span className="font-medium">{campo}</span>
-                        <span className="text-gray-500 text-xs ml-2">
+                        <span className="text-gray-600 text-xs ml-2">
                           [{severidadLabel}]
                         </span>
                         {mensaje && <span>: {mensaje}</span>}
                       </Typography>
                       {accion && (
-                        <Typography variant="body2" className="text-gray-600 pl-4">
+                        <Typography variant="body2" className="text-gray-700 pl-4">
                           → {accion}
                         </Typography>
                       )}
