@@ -64,8 +64,10 @@ class ProcessorService:
             # 3. Convertir a diccionario JSON serializable
             processed_data = historia_pydantic.model_dump(mode='json')
 
-            # 4. Guardar resultado
-            result_filename = f"{file_id}.json"
+            # 4. Guardar resultado usando el id_procesamiento del JSON
+            # (para que coincida al buscar luego)
+            processing_id = processed_data.get('id_procesamiento', file_id)
+            result_filename = f"{processing_id}.json"
             result_path = self.processed_folder / result_filename
 
             with open(result_path, 'w', encoding='utf-8') as f:
@@ -214,13 +216,25 @@ class ProcessorService:
         Returns:
             JSON del resultado o None si no existe
         """
+        # Primero intentar buscar por nombre de archivo
         result_path = self.processed_folder / f"{result_id}.json"
 
-        if not result_path.exists():
-            return None
+        if result_path.exists():
+            with open(result_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
 
-        with open(result_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        # Si no existe, buscar en todos los archivos JSON
+        # (para archivos antiguos guardados con nombre diferente)
+        for json_file in self.processed_folder.glob('*.json'):
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if data.get('id_procesamiento') == result_id:
+                        return data
+            except Exception:
+                continue
+
+        return None
 
     def export_to_excel(self, result_ids: List[str] = None) -> Path:
         """
