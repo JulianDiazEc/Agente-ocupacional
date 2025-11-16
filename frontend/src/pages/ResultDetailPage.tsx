@@ -49,13 +49,30 @@ export const ResultDetailPage: React.FC = () => {
     if (!selectedResult || !pdfContentRef.current) return;
     setExporting(true);
     setExportError(null);
+
+    const pdfContainer = pdfContentRef.current.parentElement as HTMLElement;
+
     try {
+      // Hacer visible temporalmente para captura
+      if (pdfContainer) {
+        pdfContainer.style.opacity = '1';
+        pdfContainer.style.zIndex = '9999';
+      }
+
+      // Esperar a que el navegador renderice
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const filename = `HC_${selectedResult.datos_empleado.documento}_${selectedResult.datos_empleado.nombre_completo.replace(/\s+/g, '_')}.pdf`;
       await exportService.exportToPDF(pdfContentRef.current, filename);
     } catch (err: any) {
       console.error('Error exportando:', err);
       setExportError(err.message || 'Error al exportar a PDF');
     } finally {
+      // Ocultar nuevamente
+      if (pdfContainer) {
+        pdfContainer.style.opacity = '0';
+        pdfContainer.style.zIndex = '-1000';
+      }
       setExporting(false);
     }
   };
