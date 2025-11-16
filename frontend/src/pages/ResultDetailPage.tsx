@@ -15,6 +15,7 @@ import { exportService } from '@/services';
 import PatientHeader from '@/components/evaluation/PatientHeader';
 import AptitudeSummaryCard from '@/components/evaluation/AptitudeSummaryCard';
 import UnifiedClinicalCard from '@/components/evaluation/UnifiedClinicalCard';
+import PDFExportView from '@/components/export/PDFExportView';
 
 /**
  * Componente ResultDetailPage
@@ -25,7 +26,8 @@ export const ResultDetailPage: React.FC = () => {
   const { selectedResult, loading, error, fetchResultById, selectResult } = useResults();
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null); // Vista normal (no se usa para PDF)
+  const pdfContentRef = useRef<HTMLDivElement>(null); // Vista optimizada para PDF
 
   /**
    * Cargar resultado al montar
@@ -41,15 +43,15 @@ export const ResultDetailPage: React.FC = () => {
   }, [id, fetchResultById, selectResult]);
 
   /**
-   * Exportar a PDF
+   * Exportar a PDF usando vista optimizada
    */
   const handleExportPDF = async () => {
-    if (!selectedResult || !contentRef.current) return;
+    if (!selectedResult || !pdfContentRef.current) return;
     setExporting(true);
     setExportError(null);
     try {
-      const filename = `${selectedResult.datos_empleado.documento}_${selectedResult.datos_empleado.nombre_completo.replace(/\s+/g, '_')}.pdf`;
-      await exportService.exportToPDF(contentRef.current, filename);
+      const filename = `HC_${selectedResult.datos_empleado.documento}_${selectedResult.datos_empleado.nombre_completo.replace(/\s+/g, '_')}.pdf`;
+      await exportService.exportToPDF(pdfContentRef.current, filename);
     } catch (err: any) {
       console.error('Error exportando:', err);
       setExportError(err.message || 'Error al exportar a PDF');
@@ -275,6 +277,19 @@ export const ResultDetailPage: React.FC = () => {
             </Box>
           </Box>
         </Box>
+      </div>
+
+      {/* Vista optimizada para PDF (oculta) */}
+      <div
+        ref={pdfContentRef}
+        style={{
+          position: 'absolute',
+          left: '-9999px',
+          top: 0,
+          width: '210mm' // Ancho A4
+        }}
+      >
+        <PDFExportView historia={selectedResult} />
       </div>
     </Box>
   );
