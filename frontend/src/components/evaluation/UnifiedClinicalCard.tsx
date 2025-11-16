@@ -73,6 +73,16 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
   recomendaciones = [],
   alertas = [],
 }) => {
+  // DEBUG: Ver qué datos están llegando
+  console.log('🔍 UnifiedClinicalCard - Datos recibidos:', {
+    signos_vitales,
+    examenes,
+    diagnosticos,
+    antecedentes,
+    recomendaciones,
+    alertas
+  });
+
   // Función para comparar valor con rango y obtener flecha
   const getValueArrow = (valor: number, rango?: string): { arrow: string; color: string } => {
     if (!rango) return { arrow: '', color: '' };
@@ -99,6 +109,7 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
   const examenesAlterados = examenes.filter(
     (ex) => ex.interpretacion?.toLowerCase() === 'alterado'
   );
+  console.log('📊 Exámenes alterados filtrados:', examenesAlterados);
 
   // Extraer signos vitales fuera de rango
   const signosVitalesFueraRango: string[] = [];
@@ -141,9 +152,11 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
       }
     }
   }
+  console.log('💓 Signos vitales fuera de rango:', signosVitalesFueraRango);
 
   // Extraer antecedentes activos agrupados por tipo
   const antecedentesActivos = antecedentes.filter((ant) => ant.activo === true);
+  console.log('📋 Antecedentes activos filtrados:', antecedentesActivos);
   const antecedentesPatologicos = antecedentesActivos.filter(
     (ant) => ant.tipo?.toLowerCase() === 'patologico'
   );
@@ -219,6 +232,17 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
     examenesNormales.length > 0 ||
     recomendacionesUnicas.length > 0 ||
     alertas.length > 0;
+
+  console.log('✅ Resumen de contenido:', {
+    diagnosticos: diagnosticos.length,
+    examenesAlterados: examenesAlterados.length,
+    signosVitalesFueraRango: signosVitalesFueraRango.length,
+    antecedentesActivos: antecedentesActivos.length,
+    examenesNormales: examenesNormales.length,
+    recomendacionesUnicas: recomendacionesUnicas.length,
+    alertas: alertas.length,
+    hayContenido
+  });
 
   return (
     <Card className="shadow-sm border border-gray-200 mb-6">
