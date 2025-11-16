@@ -216,24 +216,42 @@ class ProcessorService:
         Returns:
             JSON del resultado o None si no existe
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Log de la búsqueda
+        logger.info(f"Buscando resultado con ID: {result_id}")
+        logger.info(f"Directorio de búsqueda: {self.processed_folder.absolute()}")
+
         # Primero intentar buscar por nombre de archivo
         result_path = self.processed_folder / f"{result_id}.json"
+        logger.info(f"Intentando ruta directa: {result_path.absolute()}")
 
         if result_path.exists():
+            logger.info(f"✓ Archivo encontrado por nombre: {result_path.name}")
             with open(result_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
 
         # Si no existe, buscar en todos los archivos JSON
         # (para archivos antiguos guardados con nombre diferente)
-        for json_file in self.processed_folder.glob('*.json'):
+        logger.info(f"Archivo no encontrado por nombre. Buscando en todos los archivos...")
+
+        all_files = list(self.processed_folder.glob('*.json'))
+        logger.info(f"Total de archivos JSON en directorio: {len(all_files)}")
+
+        for json_file in all_files:
             try:
                 with open(json_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    if data.get('id_procesamiento') == result_id:
+                    file_id = data.get('id_procesamiento')
+                    if file_id == result_id:
+                        logger.info(f"✓ Encontrado en archivo: {json_file.name} (id_procesamiento coincide)")
                         return data
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Error leyendo {json_file.name}: {e}")
                 continue
 
+        logger.error(f"✗ No se encontró ningún archivo con id_procesamiento={result_id}")
         return None
 
     def export_to_excel(self, result_ids: List[str] = None) -> Path:
