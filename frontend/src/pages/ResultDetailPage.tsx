@@ -178,6 +178,7 @@ export const ResultDetailPage: React.FC = () => {
           datos_empleado={selectedResult.datos_empleado}
           tipo_emo={selectedResult.tipo_emo}
           fecha_emo={selectedResult.fecha_emo}
+          fecha_procesamiento={selectedResult.fecha_procesamiento}
         />
 
         {/* 2. Aptitud Laboral (simplificada) */}

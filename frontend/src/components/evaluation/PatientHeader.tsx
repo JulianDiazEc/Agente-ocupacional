@@ -6,24 +6,34 @@ interface PatientHeaderProps {
   datos_empleado: {
     nombre_completo?: string;
     tipo_documento?: string;
-    numero_documento?: string;
+    documento?: string;
     edad?: number;
     cargo?: string;
     empresa?: string;
   };
   tipo_emo?: string;
   fecha_emo?: string;
+  fecha_procesamiento?: string; // Fallback si fecha_emo es null
 }
 
 const PatientHeader: React.FC<PatientHeaderProps> = ({
   datos_empleado,
   tipo_emo,
   fecha_emo,
+  fecha_procesamiento,
 }) => {
   const formatDocumento = () => {
     const tipo = datos_empleado.tipo_documento || '';
-    const numero = datos_empleado.numero_documento || '';
-    return tipo && numero ? `${tipo} ${numero}` : numero || 'No especificado';
+    const numero = datos_empleado.documento || '';
+
+    // Si falta todo, mostrar "No especificado"
+    if (!tipo && !numero) return 'No especificado';
+
+    // Si hay tipo y número, mostrar ambos (ej: CC 1143129524)
+    if (tipo && numero) return `${tipo} ${numero}`;
+
+    // Si solo hay número, mostrarlo
+    return numero;
   };
 
   const formatTipoEmo = (tipo?: string) => {
@@ -38,16 +48,20 @@ const PatientHeader: React.FC<PatientHeaderProps> = ({
     return tipos[tipo] || tipo;
   };
 
-  const formatFecha = (fecha?: string) => {
-    if (!fecha) return 'No especificada';
+  const formatFecha = () => {
+    // Usar fecha_emo primero, si no existe, usar fecha_procesamiento como fallback
+    const fechaFinal = fecha_emo || fecha_procesamiento;
+
+    if (!fechaFinal) return 'No especificada';
+
     try {
-      return new Date(fecha).toLocaleDateString('es-CO', {
+      return new Date(fechaFinal).toLocaleDateString('es-ES', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
       });
     } catch {
-      return fecha;
+      return fechaFinal;
     }
   };
 
@@ -143,7 +157,7 @@ const PatientHeader: React.FC<PatientHeaderProps> = ({
               Fecha
             </Typography>
             <Typography variant="body2" className="text-gray-900 font-medium">
-              {formatFecha(fecha_emo)}
+              {formatFecha()}
             </Typography>
           </Box>
         </Box>
