@@ -3,10 +3,10 @@
  * Muestra información completa de una historia clínica procesada
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, CircularProgress, Typography, Button as MuiButton } from '@mui/material';
-import { ArrowBack, Download, Description } from '@mui/icons-material';
+import { ArrowBack, Download, Description, PictureAsPdf } from '@mui/icons-material';
 import { Button } from '@/components/common/Button';
 import { Alert } from '@/components/common/Alert';
 import { useResults } from '@/contexts';
@@ -26,6 +26,7 @@ export const ResultDetailPage: React.FC = () => {
   const { selectedResult, loading, error, fetchResultById, selectResult } = useResults();
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   /**
    * Cargar resultado al montar
@@ -41,17 +42,18 @@ export const ResultDetailPage: React.FC = () => {
   }, [id, fetchResultById, selectResult]);
 
   /**
-   * Exportar a JSON
+   * Exportar a PDF
    */
-  const handleExportJSON = async () => {
-    if (!selectedResult) return;
+  const handleExportPDF = async () => {
+    if (!selectedResult || !contentRef.current) return;
     setExporting(true);
     setExportError(null);
     try {
-      await exportService.exportToJSON(selectedResult);
+      const filename = `${selectedResult.datos_empleado.documento}_${selectedResult.datos_empleado.nombre_completo.replace(/\s+/g, '_')}.pdf`;
+      await exportService.exportToPDF(contentRef.current, filename);
     } catch (err: any) {
       console.error('Error exportando:', err);
-      setExportError(err.message || 'Error al exportar a JSON');
+      setExportError(err.message || 'Error al exportar a PDF');
     } finally {
       setExporting(false);
     }
@@ -151,12 +153,12 @@ export const ResultDetailPage: React.FC = () => {
         <Box className="flex items-center gap-2">
           <MuiButton
             variant="outlined"
-            startIcon={<Download />}
-            onClick={handleExportJSON}
+            startIcon={<PictureAsPdf />}
+            onClick={handleExportPDF}
             disabled={exporting}
             size="small"
           >
-            JSON
+            PDF
           </MuiButton>
           <MuiButton
             variant="outlined"
@@ -186,69 +188,72 @@ export const ResultDetailPage: React.FC = () => {
         </Alert>
       )}
 
-      {/* 1. Header del Paciente */}
-      <PatientHeader
-        datos_empleado={selectedResult.datos_empleado}
-        tipo_emo={selectedResult.tipo_emo}
-        fecha_emo={selectedResult.fecha_emo}
-      />
+      {/* Contenedor para exportación PDF */}
+      <div ref={contentRef}>
+        {/* 1. Header del Paciente */}
+        <PatientHeader
+          datos_empleado={selectedResult.datos_empleado}
+          tipo_emo={selectedResult.tipo_emo}
+          fecha_emo={selectedResult.fecha_emo}
+        />
 
-      {/* 2. Aptitud Laboral (simplificada) */}
-      <AptitudeSummaryCard
-        aptitud_laboral={
-          typeof selectedResult.aptitud_laboral === 'string'
-            ? selectedResult.aptitud_laboral
-            : selectedResult.aptitud_laboral?.resultado_aptitud
-        }
-        tipo_emo={selectedResult.tipo_emo}
-        confianza_extraccion={selectedResult.confianza_extraccion}
-      />
+        {/* 2. Aptitud Laboral (simplificada) */}
+        <AptitudeSummaryCard
+          aptitud_laboral={
+            typeof selectedResult.aptitud_laboral === 'string'
+              ? selectedResult.aptitud_laboral
+              : selectedResult.aptitud_laboral?.resultado_aptitud
+          }
+          tipo_emo={selectedResult.tipo_emo}
+          confianza_extraccion={selectedResult.confianza_extraccion}
+        />
 
-      {/* 3. Resumen Clínico Unificado (hallazgos + normales + alertas) */}
-      <UnifiedClinicalCard
-        signos_vitales={selectedResult.signos_vitales}
-        examenes={selectedResult.examenes}
-        diagnosticos={selectedResult.diagnosticos}
-        antecedentes={selectedResult.antecedentes}
-        recomendaciones={selectedResult.recomendaciones}
-        alertas={selectedResult.alertas_validacion}
-      />
+        {/* 3. Resumen Clínico Unificado (hallazgos + normales + alertas) */}
+        <UnifiedClinicalCard
+          signos_vitales={selectedResult.signos_vitales}
+          examenes={selectedResult.examenes}
+          diagnosticos={selectedResult.diagnosticos}
+          antecedentes={selectedResult.antecedentes}
+          recomendaciones={selectedResult.recomendaciones}
+          alertas={selectedResult.alertas_validacion}
+        />
 
-      {/* 4. Metadata de procesamiento */}
-      <Box className="bg-gray-50 border border-gray-200 rounded-lg p-6 mt-8">
-        <Typography variant="subtitle2" className="font-semibold text-gray-700 mb-4">
-          Información de Procesamiento
-        </Typography>
-        <Box className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <Box>
-            <Typography variant="caption" className="text-gray-600 block">
-              ID de Procesamiento
-            </Typography>
-            <Typography
-              variant="body2"
-              className="font-mono text-xs text-gray-900 mt-1 break-all"
-            >
-              {selectedResult.id_procesamiento}
-            </Typography>
-          </Box>
-          <Box>
-            <Typography variant="caption" className="text-gray-600 block">
-              Fecha de Procesamiento
-            </Typography>
-            <Typography variant="body2" className="text-gray-900 mt-1">
-              {new Date(selectedResult.fecha_procesamiento).toLocaleString('es-ES')}
-            </Typography>
-          </Box>
-          <Box>
-            <Typography variant="caption" className="text-gray-600 block">
-              Archivo Original
-            </Typography>
-            <Typography variant="body2" className="text-gray-900 mt-1 truncate">
-              {selectedResult.archivo_origen}
-            </Typography>
+        {/* 4. Metadata de procesamiento */}
+        <Box className="bg-gray-50 border border-gray-200 rounded-lg p-6 mt-8">
+          <Typography variant="subtitle2" className="font-semibold text-gray-700 mb-4">
+            Información de Procesamiento
+          </Typography>
+          <Box className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <Box>
+              <Typography variant="caption" className="text-gray-600 block">
+                ID de Procesamiento
+              </Typography>
+              <Typography
+                variant="body2"
+                className="font-mono text-xs text-gray-900 mt-1 break-all"
+              >
+                {selectedResult.id_procesamiento}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" className="text-gray-600 block">
+                Fecha de Procesamiento
+              </Typography>
+              <Typography variant="body2" className="text-gray-900 mt-1">
+                {new Date(selectedResult.fecha_procesamiento).toLocaleString('es-ES')}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" className="text-gray-600 block">
+                Archivo Original
+              </Typography>
+              <Typography variant="body2" className="text-gray-900 mt-1 truncate">
+                {selectedResult.archivo_origen}
+              </Typography>
+            </Box>
           </Box>
         </Box>
-      </Box>
+      </div>
     </Box>
   );
 };

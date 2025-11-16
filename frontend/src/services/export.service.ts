@@ -1,9 +1,10 @@
 /**
  * Servicio para exportación de resultados
- * Exportar a Excel, JSON, etc.
+ * Exportar a Excel, PDF, etc.
  */
 
 import api, { downloadFile } from './api';
+import html2pdf from 'html2pdf.js';
 
 /**
  * Servicio de exportación
@@ -75,23 +76,48 @@ export const exportService = {
   },
 
   /**
-   * Exportar un resultado individual a JSON
+   * Exportar el contenido visible a PDF
+   * @param element - Elemento HTML a exportar (puede ser un id de string o un HTMLElement)
+   * @param filename - Nombre del archivo PDF
    */
-  async exportToJSON(result: any): Promise<void> {
-    const json = JSON.stringify(result, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const filename = `${result.datos_empleado.documento}_${new Date().getTime()}.json`;
-    downloadFile(blob, filename);
-  },
+  async exportToPDF(element: string | HTMLElement, filename?: string): Promise<void> {
+    try {
+      // Obtener el elemento
+      const targetElement = typeof element === 'string'
+        ? document.getElementById(element)
+        : element;
 
-  /**
-   * Exportar múltiples resultados a JSON
-   */
-  async exportMultipleToJSON(results: any[]): Promise<void> {
-    const json = JSON.stringify(results, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const filename = `historias_clinicas_${new Date().getTime()}.json`;
-    downloadFile(blob, filename);
+      if (!targetElement) {
+        throw new Error('Elemento no encontrado para exportar');
+      }
+
+      // Configuración de html2pdf
+      const options = {
+        margin: [10, 10, 10, 10],
+        filename: filename || `historia_clinica_${new Date().getTime()}.pdf`,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          letterRendering: true
+        },
+        jsPDF: {
+          unit: 'mm',
+          format: 'letter',
+          orientation: 'portrait'
+        },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      // Generar PDF
+      await html2pdf().set(options).from(targetElement).save();
+    } catch (error: any) {
+      console.error('Error exportando a PDF:', error);
+      throw new Error(
+        error.message || 'Error al exportar a PDF. Por favor intente nuevamente.'
+      );
+    }
   },
 };
 
