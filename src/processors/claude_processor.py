@@ -1162,7 +1162,7 @@ class ClaudeProcessor:
                 return historia_dict
 
         # Si todo falla, lanzar error
-        logger.error(f"No se pudo parsear respuesta de Claude: {response_text[:500]}...")
+        logger.error("No se pudo parsear respuesta de Claude: %s...", response_text[:500])
         raise ValueError(
             "La respuesta de Claude no contiene JSON válido. "
             "Verifique los logs para más detalles."
