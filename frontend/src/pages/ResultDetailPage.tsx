@@ -6,7 +6,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, CircularProgress, Typography, Button as MuiButton } from '@mui/material';
-import { ArrowBack, Download, Description, PictureAsPdf } from '@mui/icons-material';
+import { ArrowBack, Download, Description } from '@mui/material/icons-material';
 import { Alert } from '@/components/common/Alert';
 import { useResults } from '@/contexts';
 import { exportService } from '@/services';
@@ -15,7 +15,6 @@ import { exportService } from '@/services';
 import PatientHeader from '@/components/evaluation/PatientHeader';
 import AptitudeSummaryCard from '@/components/evaluation/AptitudeSummaryCard';
 import UnifiedClinicalCard from '@/components/evaluation/UnifiedClinicalCard';
-import PDFExportView from '@/components/export/PDFExportView';
 
 /**
  * Componente ResultDetailPage
@@ -26,8 +25,7 @@ export const ResultDetailPage: React.FC = () => {
   const { selectedResult, loading, error, fetchResultById, selectResult } = useResults();
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const contentRef = useRef<HTMLDivElement>(null); // Vista normal (no se usa para PDF)
-  const pdfContentRef = useRef<HTMLDivElement>(null); // Vista optimizada para PDF
+  const contentRef = useRef<HTMLDivElement>(null);
 
   /**
    * Cargar resultado al montar
@@ -41,41 +39,6 @@ export const ResultDetailPage: React.FC = () => {
       selectResult(null);
     };
   }, [id, fetchResultById, selectResult]);
-
-  /**
-   * Exportar a PDF usando vista optimizada
-   */
-  const handleExportPDF = async () => {
-    if (!selectedResult || !pdfContentRef.current) return;
-    setExporting(true);
-    setExportError(null);
-
-    const pdfContainer = pdfContentRef.current.parentElement as HTMLElement;
-
-    try {
-      // Hacer visible temporalmente para captura
-      if (pdfContainer) {
-        pdfContainer.style.opacity = '1';
-        pdfContainer.style.zIndex = '9999';
-      }
-
-      // Esperar a que el navegador renderice
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const filename = `HC_${selectedResult.datos_empleado.documento}_${selectedResult.datos_empleado.nombre_completo.replace(/\s+/g, '_')}.pdf`;
-      await exportService.exportToPDF(pdfContentRef.current, filename);
-    } catch (err: any) {
-      console.error('Error exportando:', err);
-      setExportError(err.message || 'Error al exportar a PDF');
-    } finally {
-      // Ocultar nuevamente
-      if (pdfContainer) {
-        pdfContainer.style.opacity = '0';
-        pdfContainer.style.zIndex = '-1000';
-      }
-      setExporting(false);
-    }
-  };
 
   /**
    * Exportar a Excel
@@ -171,8 +134,8 @@ export const ResultDetailPage: React.FC = () => {
         <Box className="flex items-center gap-2">
           <MuiButton
             variant="contained"
-            startIcon={<PictureAsPdf />}
-            onClick={handleExportPDF}
+            startIcon={<Download />}
+            onClick={handleExportExcel}
             disabled={exporting}
             size="medium"
             sx={{
@@ -183,27 +146,6 @@ export const ResultDetailPage: React.FC = () => {
               },
               '&:disabled': {
                 bgcolor: '#fce7f3',
-                color: '#f9a8d4',
-              },
-            }}
-          >
-            Exportar PDF
-          </MuiButton>
-          <MuiButton
-            variant="outlined"
-            startIcon={<Download />}
-            onClick={handleExportExcel}
-            disabled={exporting}
-            size="medium"
-            sx={{
-              borderColor: '#EC4899',
-              color: '#EC4899',
-              '&:hover': {
-                borderColor: '#db2777',
-                bgcolor: 'rgba(236, 72, 153, 0.04)',
-              },
-              '&:disabled': {
-                borderColor: '#fce7f3',
                 color: '#f9a8d4',
               },
             }}
@@ -294,22 +236,6 @@ export const ResultDetailPage: React.FC = () => {
             </Box>
           </Box>
         </Box>
-      </div>
-
-      {/* Vista optimizada para PDF (oculta pero renderizada) */}
-      <div
-        ref={pdfContentRef}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '210mm',
-          zIndex: -1000,
-          opacity: 0,
-          pointerEvents: 'none'
-        }}
-      >
-        <PDFExportView historia={selectedResult} />
       </div>
     </Box>
   );
