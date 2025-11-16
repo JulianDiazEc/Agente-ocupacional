@@ -12,31 +12,33 @@ const AptitudeSummaryCard: React.FC<AptitudeSummaryCardProps> = ({
   tipo_emo,
   confianza_extraccion,
 }) => {
-  const getAptitudLabel = () => {
-    const aptitud = aptitud_laboral?.toLowerCase() || '';
+  // Mapeo directo sin interpretación
+  const formatAptitud = (aptitud?: string) => {
+    if (!aptitud) return 'No especificado';
 
-    if (aptitud.includes('apto') && !aptitud.includes('restriccion')) {
-      return 'Apto';
-    }
-    if (aptitud.includes('restriccion')) {
-      return 'Apto con restricciones';
-    }
-    if (aptitud.includes('no_apto')) {
-      return 'No apto';
-    }
-    return 'Pendiente';
+    const aptitudMap: Record<string, string> = {
+      'apto': 'Apto',
+      'apto_sin_restricciones': 'Apto',
+      'apto_con_recomendaciones': 'Apto con recomendaciones',
+      'apto_con_restricciones': 'Apto con restricciones',
+      'no_apto_temporal': 'No apto temporal',
+      'no_apto_definitivo': 'No apto definitivo',
+      'pendiente': 'Pendiente',
+    };
+
+    return aptitudMap[aptitud] || aptitud;
   };
 
-  const getAptitudColor = () => {
-    const aptitud = aptitud_laboral?.toLowerCase() || '';
+  const getAptitudColor = (aptitud?: string) => {
+    if (!aptitud) return 'default';
 
-    if (aptitud.includes('apto') && !aptitud.includes('restriccion')) {
+    if (aptitud === 'apto' || aptitud === 'apto_sin_restricciones') {
       return 'success';
     }
-    if (aptitud.includes('restriccion')) {
+    if (aptitud === 'apto_con_recomendaciones' || aptitud === 'apto_con_restricciones') {
       return 'warning';
     }
-    if (aptitud.includes('no_apto')) {
+    if (aptitud.startsWith('no_apto')) {
       return 'error';
     }
     return 'default';
@@ -63,8 +65,8 @@ const AptitudeSummaryCard: React.FC<AptitudeSummaryCardProps> = ({
 
         <Box className="flex items-center gap-4">
           <Chip
-            label={getAptitudLabel()}
-            color={getAptitudColor() as any}
+            label={formatAptitud(aptitud_laboral)}
+            color={getAptitudColor(aptitud_laboral) as any}
             size="medium"
           />
           <Typography variant="body2" className="text-gray-600">
