@@ -7,6 +7,7 @@ from flask_restful import Api
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import sys
+import logging
 from pathlib import Path
 
 # Añadir el directorio src/ al PYTHONPATH para importar módulos del CLI
@@ -24,6 +25,15 @@ def create_app():
     # Cargar configuración
     config_class = get_config()
     app.config.from_object(config_class)
+
+    # Configurar logging
+    logging.basicConfig(
+        level=getattr(logging, app.config.get('LOG_LEVEL', 'INFO')),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),  # Console output
+        ]
+    )
 
     # Inicializar extensiones
     CORS(app, origins=app.config['CORS_ORIGINS'])

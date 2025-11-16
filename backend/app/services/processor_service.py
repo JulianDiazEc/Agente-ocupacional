@@ -22,11 +22,19 @@ class ProcessorService:
     """Servicio de procesamiento de HCs"""
 
     def __init__(self):
-        # Obtener ruta base del proyecto backend (../backend/ desde app/services/)
-        backend_root = Path(__file__).resolve().parent.parent.parent
+        # Usar la configuración de Flask para obtener las rutas
+        from config import get_config
+        config = get_config()
 
-        self.upload_folder = backend_root / 'uploads'
-        self.processed_folder = backend_root / 'processed'
+        self.upload_folder = Path(config.UPLOAD_FOLDER)
+        self.processed_folder = Path(config.PROCESSED_FOLDER)
+
+        # Log de las rutas para debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"ProcessorService inicializado")
+        logger.info(f"  upload_folder: {self.upload_folder.absolute()}")
+        logger.info(f"  processed_folder: {self.processed_folder.absolute()}")
 
         # Asegurar que las carpetas existen
         self.upload_folder.mkdir(exist_ok=True, parents=True)
