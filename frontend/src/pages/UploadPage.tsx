@@ -24,6 +24,8 @@ export const UploadPage: React.FC = () => {
 
   const [files, setFiles] = useState<File[]>([]);
   const [personId, setPersonId] = useState('');
+  const [empresa, setEmpresa] = useState('Fundación Ser Social');
+  const [documento, setDocumento] = useState('');
 
   /**
    * Manejar cambio de archivos
@@ -44,7 +46,11 @@ export const UploadPage: React.FC = () => {
    */
   const handleProcess = async () => {
     if (files.length === 0) return;
-    await processPersonDocuments(files, personId || undefined);
+    await processPersonDocuments(files, {
+      personId: personId || undefined,
+      empresa,
+      documento,
+    });
   };
 
   /**
@@ -54,6 +60,8 @@ export const UploadPage: React.FC = () => {
     reset();
     setFiles([]);
     setPersonId('');
+    setEmpresa('Fundación Ser Social');
+    setDocumento('');
   };
 
   /**
@@ -98,7 +106,7 @@ export const UploadPage: React.FC = () => {
       {status === 'processing' && (
         <UploadProgress
           progress={progress}
-          currentFile={currentFile}
+          currentFile={currentFile || undefined}
           totalFiles={files.length}
         />
       )}
@@ -129,6 +137,40 @@ export const UploadPage: React.FC = () => {
       {status === 'idle' && (
         <>
           <Card variant="outlined">
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Empresa <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={empresa}
+                onChange={(e) => setEmpresa(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              >
+                <option value="Fundación Ser Social">Fundación Ser Social</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Selecciona la empresa del empleado
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Documento del Empleado <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={documento}
+                onChange={(e) => setDocumento(e.target.value)}
+                placeholder="Ej: CC 12345678, 1234567890"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Ingresa el número de documento del empleado
+              </p>
+            </div>
+
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 ID del Paciente (opcional)
@@ -187,7 +229,7 @@ export const UploadPage: React.FC = () => {
                 variant="primary"
                 icon={<Upload />}
                 onClick={handleProcess}
-                disabled={files.length === 0}
+                disabled={files.length === 0 || !documento.trim()}
               >
                 Procesar Documentos
               </Button>

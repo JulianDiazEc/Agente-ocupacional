@@ -89,13 +89,17 @@ export interface Diagnostico {
 // ============================================================================
 
 export interface Examen {
-  tipo: TipoExamen;
-  nombre: string;
+  tipo?: TipoExamen;
+  tipo_examen?: string;
+  nombre?: string;
   resultado?: string;
   valor?: string;
+  valor_numerico?: number;
   unidad?: string;
-  interpretacion: InterpretacionExamen;
+  rango_referencia?: string;
+  interpretacion?: InterpretacionExamen;
   hallazgos?: string;
+  hallazgos_clave?: string;
   confianza?: number;
 }
 
@@ -109,9 +113,10 @@ export interface ExamenParaclinico extends Examen {
 // ============================================================================
 
 export interface Antecedente {
-  tipo: 'personal' | 'familiar' | 'laboral' | 'toxico_alergico';
-  descripcion: string;
+  tipo?: 'personal' | 'familiar' | 'laboral' | 'toxico_alergico' | 'patologico' | string;
+  descripcion?: string;
   fecha?: string;
+  activo?: boolean;
   confianza?: number;
 }
 
@@ -156,6 +161,17 @@ export interface Vacuna {
 // INTERFAZ PRINCIPAL: HISTORIA CLÍNICA PROCESADA
 // ============================================================================
 
+export interface SignosVitales {
+  peso?: number;
+  talla?: number;
+  imc?: number;
+  presion_arterial?: string;
+  frecuencia_cardiaca?: number;
+  frecuencia_respiratoria?: number;
+  temperatura?: number;
+  saturacion_oxigeno?: number;
+}
+
 export interface HistoriaClinicaProcesada {
   // Metadatos de procesamiento
   id_procesamiento: string;
@@ -170,6 +186,9 @@ export interface HistoriaClinicaProcesada {
   fecha_emo: string;
   medico_evaluador?: string;
   licencia_medica?: string;
+
+  // Signos vitales
+  signos_vitales?: SignosVitales;
 
   // Diagnósticos
   diagnosticos: Diagnostico[];

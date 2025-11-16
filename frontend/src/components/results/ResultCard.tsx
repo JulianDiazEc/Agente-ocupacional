@@ -33,14 +33,21 @@ export const ResultCard: React.FC<ResultCardProps> = ({
 
   // Aptitud badge variant
   const getAptitudBadge = () => {
+    // Manejo defensivo: puede ser null, undefined, string, u objeto
+    if (!historia.aptitud_laboral) {
+      return { variant: 'default' as const, label: 'Pendiente' };
+    }
+
     const resultado =
       typeof historia.aptitud_laboral === 'string'
         ? historia.aptitud_laboral
         : historia.aptitud_laboral.resultado_aptitud;
 
-    switch (resultado) {
+    switch (resultado as string) {
       case 'apto':
+      case 'apto_sin_restricciones':
         return { variant: 'success' as const, label: 'Apto' };
+      case 'apto_con_recomendaciones':
       case 'apto_con_restricciones':
         return { variant: 'warning' as const, label: 'Apto con restricciones' };
       case 'no_apto_temporal':
@@ -62,8 +69,8 @@ export const ResultCard: React.FC<ResultCardProps> = ({
     return 'text-red-600';
   };
 
-  // Alertas altas
-  const alertasAltas = historia.alertas_validacion.filter(a => a.severidad === 'alta').length;
+  // Alertas altas (manejo defensivo)
+  const alertasAltas = (historia.alertas_validacion || []).filter(a => a.severidad === 'alta').length;
 
   return (
     <div
@@ -82,10 +89,10 @@ export const ResultCard: React.FC<ResultCardProps> = ({
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-gray-900 truncate">
-              {historia.datos_empleado.nombre_completo}
+              {historia.datos_empleado.nombre_completo || 'Sin nombre'}
             </h3>
             <p className="text-sm text-gray-500 truncate">
-              {historia.datos_empleado.documento} • {historia.tipo_emo.toUpperCase()}
+              {historia.datos_empleado.documento || 'Sin documento'} • {historia.tipo_emo?.toUpperCase() || 'N/A'}
             </p>
           </div>
         </div>
@@ -99,7 +106,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
         <div className="flex items-center gap-2 text-sm">
           <Calendar size={14} className="text-gray-400 flex-shrink-0" />
           <span className="text-gray-600 truncate">
-            {format(new Date(historia.fecha_emo), 'dd MMM yyyy', { locale: es })}
+            {historia.fecha_emo ? format(new Date(historia.fecha_emo), 'dd MMM yyyy', { locale: es }) : 'Sin fecha'}
           </span>
         </div>
 
@@ -117,15 +124,15 @@ export const ResultCard: React.FC<ResultCardProps> = ({
         <div className="flex items-center gap-2 text-sm">
           <span className="text-gray-500">Diagnósticos:</span>
           <span className="font-medium text-gray-900">
-            {historia.diagnosticos.length}
+            {historia.diagnosticos?.length || 0}
           </span>
         </div>
 
         {/* Confianza */}
         <div className="flex items-center gap-2 text-sm">
           <span className="text-gray-500">Confianza:</span>
-          <span className={`font-medium ${getConfidenceColor(historia.confianza_extraccion)}`}>
-            {Math.round(historia.confianza_extraccion * 100)}%
+          <span className={`font-medium ${getConfidenceColor(historia.confianza_extraccion || 0)}`}>
+            {Math.round((historia.confianza_extraccion || 0) * 100)}%
           </span>
         </div>
       </div>

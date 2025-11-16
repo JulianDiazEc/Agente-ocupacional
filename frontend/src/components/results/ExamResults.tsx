@@ -25,7 +25,7 @@ export const ExamResults: React.FC<ExamResultsProps> = ({
     );
   }
 
-  const getInterpretacionIcon = (interpretacion: string) => {
+  const getInterpretacionIcon = (interpretacion?: string) => {
     switch (interpretacion) {
       case 'normal':
         return <CheckCircle size={18} className="text-green-500" />;
@@ -38,7 +38,7 @@ export const ExamResults: React.FC<ExamResultsProps> = ({
     }
   };
 
-  const getInterpretacionBadge = (interpretacion: string) => {
+  const getInterpretacionBadge = (interpretacion?: string) => {
     switch (interpretacion) {
       case 'normal':
         return { variant: 'success' as const, label: 'Normal' };
@@ -66,7 +66,7 @@ export const ExamResults: React.FC<ExamResultsProps> = ({
 
   // Agrupar por tipo
   const groupedExams = examenes.reduce((acc, exam) => {
-    const tipo = exam.tipo;
+    const tipo = exam.tipo || 'otro';
     if (!acc[tipo]) {
       acc[tipo] = [];
     }

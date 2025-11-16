@@ -62,6 +62,8 @@ def process_person():
     Body (multipart/form-data):
         files[]: lista de archivos PDF
         person_id: ID de la persona (opcional)
+        empresa: Nombre de la empresa (requerido)
+        documento: Documento del empleado (requerido)
 
     Returns:
         JSON con la historia clínica consolidada
@@ -72,9 +74,18 @@ def process_person():
 
     files = request.files.getlist('files[]')
     person_id = request.form.get('person_id', 'consolidated')
+    empresa = request.form.get('empresa', '')
+    documento = request.form.get('documento', '')
 
     if len(files) == 0:
         return jsonify({'error': 'Lista de archivos vacía'}), 400
+
+    # Validar campos requeridos
+    if not empresa or not empresa.strip():
+        return jsonify({'error': 'El campo empresa es requerido'}), 400
+
+    if not documento or not documento.strip():
+        return jsonify({'error': 'El campo documento es requerido'}), 400
 
     # Validar cada archivo
     for file in files:
@@ -85,7 +96,12 @@ def process_person():
 
     try:
         # Procesar y consolidar documentos
-        result = processor_service.process_person_documents(files, person_id)
+        result = processor_service.process_person_documents(
+            files,
+            person_id,
+            empresa=empresa.strip(),
+            documento=documento.strip()
+        )
         return jsonify(result), 200
 
     except Exception:
@@ -146,7 +162,20 @@ def export_to_excel():
         data = request.get_json()
         result_ids = data.get('result_ids', []) if data else []
 
+        # Validar que result_ids sea una lista si se proporciona
+        if result_ids and not isinstance(result_ids, list):
+            return jsonify({'detail': 'result_ids debe ser una lista de IDs'}), 400
+
         excel_file = processor_service.export_to_excel(result_ids)
+
+        # Verificar que el archivo existe y no está vacío
+        if not excel_file.exists():
+            logger.error(f"El archivo Excel no se generó correctamente: {excel_file}")
+            return jsonify({'detail': 'Error: el archivo Excel no se generó correctamente'}), 500
+
+        if excel_file.stat().st_size == 0:
+            logger.error(f"El archivo Excel está vacío: {excel_file}")
+            return jsonify({'detail': 'Error: el archivo Excel está vacío'}), 500
 
         return send_file(
             excel_file,
@@ -154,9 +183,12 @@ def export_to_excel():
             as_attachment=True,
             download_name='resultados_hc.xlsx'
         )
-    except Exception:
+    except ValueError as e:
+        logger.error(f"Error de validación al exportar a Excel: {str(e)}")
+        return jsonify({'detail': str(e)}), 400
+    except Exception as e:
         logger.exception("Error al exportar a Excel")
-        return jsonify({'error': 'Error al exportar a Excel.'}), 500
+        return jsonify({'detail': f'Error al exportar a Excel: {str(e)}'}), 500
 
 
 @bp.route('/stats', methods=['GET'])

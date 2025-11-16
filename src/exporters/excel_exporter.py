@@ -6,6 +6,7 @@ Genera hojas de cálculo con los datos estructurados para análisis.
 
 from pathlib import Path
 from typing import List
+from datetime import datetime
 
 import pandas as pd
 
@@ -13,6 +14,31 @@ from src.config.schemas import HistoriaClinicaEstructurada
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def remove_timezone(dt):
+    """
+    Remueve timezone de un datetime.
+
+    Excel no soporta datetimes con timezone, por lo que necesitamos
+    convertirlos a naive datetimes antes de exportar.
+    """
+    if dt is None:
+        return None
+    if isinstance(dt, str):
+        # Si es string, intentar parsear y remover timezone
+        try:
+            parsed = pd.to_datetime(dt)
+            if parsed.tz is not None:
+                return parsed.tz_localize(None)
+            return parsed
+        except:
+            return dt
+    if isinstance(dt, datetime):
+        if dt.tzinfo is not None:
+            return dt.replace(tzinfo=None)
+        return dt
+    return dt
 
 
 class ExcelExporter:
@@ -65,6 +91,13 @@ class ExcelExporter:
         df_recomendaciones = self._create_recomendaciones_df(historias)
         df_alertas = self._create_alertas_df(historias)
 
+        # Remover timezones de todos los DataFrames
+        df_resumen = self._remove_timezones_from_df(df_resumen)
+        df_diagnosticos = self._remove_timezones_from_df(df_diagnosticos)
+        df_examenes = self._remove_timezones_from_df(df_examenes)
+        df_recomendaciones = self._remove_timezones_from_df(df_recomendaciones)
+        df_alertas = self._remove_timezones_from_df(df_alertas)
+
         # Escribir a Excel
         with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
             df_resumen.to_excel(writer, sheet_name='Resumen', index=False)
@@ -76,6 +109,48 @@ class ExcelExporter:
         logger.info(f"Historias clínicas exportadas a: {output_path}")
 
         return output_path
+
+    def _remove_timezones_from_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Remueve timezones de todas las columnas datetime de un DataFrame.
+
+        Args:
+            df: DataFrame a procesar
+
+        Returns:
+            DataFrame con fechas sin timezone
+        """
+        def remove_tz_from_value(val):
+            """Helper para remover timezone de un valor individual"""
+            if val is None or pd.isna(val):
+                return val
+
+            # Si es un Timestamp con timezone
+            if isinstance(val, pd.Timestamp) and val.tz is not None:
+                return val.tz_localize(None)
+
+            # Si es un datetime con timezone
+            if isinstance(val, datetime) and val.tzinfo is not None:
+                return val.replace(tzinfo=None)
+
+            # Si es string ISO con timezone, parsearlo y remover timezone
+            if isinstance(val, str) and ('+' in val or 'Z' in val or '-' in val[-6:]):
+                try:
+                    parsed = pd.to_datetime(val)
+                    if hasattr(parsed, 'tz') and parsed.tz is not None:
+                        return parsed.tz_localize(None)
+                    return parsed
+                except:
+                    pass
+
+            return val
+
+        # Aplicar la función a cada celda del DataFrame
+        # En pandas moderno se usa map(), en versiones antiguas applymap()
+        if hasattr(df, 'map'):
+            return df.map(remove_tz_from_value)
+        else:
+            return df.applymap(remove_tz_from_value)
 
     def _create_summary_df(
         self,
@@ -176,10 +251,8 @@ class ExcelExporter:
                     'Nombre Empleado': h.datos_empleado.nombre_completo,
                     'Tipo': rec.tipo,
                     'Descripción': rec.descripcion,
-                    'Vigencia (meses)': rec.vigencia_meses,
-                    'Requiere Seguimiento': rec.requiere_seguimiento,
-                    'Fecha Seguimiento': rec.fecha_seguimiento,
-                    'Prioridad': rec.prioridad,
+                    'Vigencia (meses)': rec.vigencia_meses if rec.vigencia_meses else '',
+                    'Requiere Seguimiento': 'Sí' if rec.requiere_seguimiento else 'No',
                 }
                 data.append(row)
 
@@ -259,6 +332,9 @@ class ExcelExporter:
             data.append(row)
 
         df = pd.DataFrame(data)
+
+        # Remover timezones
+        df = self._remove_timezones_from_df(df)
 
         # Exportar
         df.to_excel(output_path, index=False, engine='openpyxl')
