@@ -756,20 +756,20 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
 
    ❌ EJEMPLO INCORRECTO (duplicados):
       recomendaciones: [
-         {"tipo": "seguimiento", "descripcion": "Seguimiento en optometría de su EPS"},
-         {"tipo": "seguimiento", "descripcion": "Seguimiento en optometría por EPS"}
+         {{"tipo": "seguimiento", "descripcion": "Seguimiento en optometría de su EPS"}},
+         {{"tipo": "seguimiento", "descripcion": "Seguimiento en optometría por EPS"}}
       ]
       remisiones: [
-         {"especialidad": "Optometría", "motivo": "Seguimiento de astigmatismo leve no corregido"},
-         {"especialidad": "Optometría", "motivo": "Seguimiento por astigmatismo leve"}
+         {{"especialidad": "Optometría", "motivo": "Seguimiento de astigmatismo leve no corregido"}},
+         {{"especialidad": "Optometría", "motivo": "Seguimiento por astigmatismo leve"}}
       ]
 
    ✅ EJEMPLO CORRECTO (consolidado):
       recomendaciones: [
-         {"tipo": "seguimiento", "descripcion": "Seguimiento en optometría por EPS"}
+         {{"tipo": "seguimiento", "descripcion": "Seguimiento en optometría por EPS"}}
       ]
       remisiones: [
-         {"especialidad": "Optometría", "motivo": "Seguimiento de astigmatismo leve no corregido"}
+         {{"especialidad": "Optometría", "motivo": "Seguimiento de astigmatismo leve no corregido"}}
       ]
 
 6. RESTRICCIONES LABORALES (campo restricciones_especificas):
