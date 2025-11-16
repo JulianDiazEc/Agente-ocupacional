@@ -229,7 +229,8 @@ class ProcessorService:
         Returns:
             Path al archivo Excel generado
         """
-        from app import logger
+        import logging
+        logger = logging.getLogger(__name__)
 
         # Obtener resultados a exportar
         if result_ids:

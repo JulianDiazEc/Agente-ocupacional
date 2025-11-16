@@ -160,14 +160,53 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
     (ex) => ex.interpretacion?.toLowerCase() === 'normal'
   );
 
-  // Eliminar recomendaciones duplicadas basándose en la descripción
+  // Función para limpiar y simplificar descripciones de recomendaciones
+  const limpiarDescripcion = (tipo: string | undefined, descripcion: string): string => {
+    let desc = descripcion.trim();
+
+    // Remover prefijos redundantes del tipo
+    const prefijos = [
+      'seguimiento:',
+      'inclusion_sve:',
+      'tratamiento:',
+      'remision_especialista:',
+      'remisión:',
+      'control:',
+      'inclusión en programa sve',
+      'inclusión en',
+      'seguimiento en',
+      'seguimiento con',
+      'remisión a eps para',
+    ];
+
+    const descLower = desc.toLowerCase();
+    for (const prefijo of prefijos) {
+      if (descLower.startsWith(prefijo)) {
+        desc = desc.substring(prefijo.length).trim();
+        break;
+      }
+    }
+
+    return desc.charAt(0).toUpperCase() + desc.slice(1);
+  };
+
+  // Eliminar recomendaciones duplicadas y limpiar descripciones
   const recomendacionesUnicas = recomendaciones.reduce((acc: Recomendacion[], rec) => {
-    const descripcionNormalizada = rec.descripcion?.toLowerCase().trim();
-    const existe = acc.some(
-      (r) => r.descripcion?.toLowerCase().trim() === descripcionNormalizada
-    );
-    if (!existe && rec.descripcion) {
-      acc.push(rec);
+    if (!rec.descripcion) return acc;
+
+    const descripcionLimpia = limpiarDescripcion(rec.tipo, rec.descripcion);
+    const descripcionNormalizada = descripcionLimpia.toLowerCase().trim();
+
+    const existe = acc.some((r) => {
+      const rDescLimpia = limpiarDescripcion(r.tipo, r.descripcion || '');
+      return rDescLimpia.toLowerCase().trim() === descripcionNormalizada;
+    });
+
+    if (!existe) {
+      acc.push({
+        ...rec,
+        descripcion: descripcionLimpia,
+      });
     }
     return acc;
   }, []);
@@ -446,30 +485,44 @@ const UnifiedClinicalCard: React.FC<UnifiedClinicalCardProps> = ({
                   Remisiones y Recomendaciones
                 </Typography>
               </Box>
-              <Box component="ul" className="space-y-2 pl-5">
+              <Box component="ul" className="space-y-1.5 pl-5">
                 {recomendacionesUnicas.map((rec, index) => {
-                  const tipo = rec.tipo || 'Recomendación';
+                  const tipo = rec.tipo?.toLowerCase() || '';
                   const especialidad = rec.especialidad;
                   const prioridad = rec.prioridad;
                   const descripcion = rec.descripcion || '';
 
+                  // Determinar icono según tipo
+                  let prefijo = '•';
+                  if (
+                    tipo.includes('remision') ||
+                    tipo.includes('especialista') ||
+                    tipo.includes('remisión')
+                  ) {
+                    prefijo = '→';
+                  } else if (tipo.includes('inclusion') || tipo.includes('sve')) {
+                    prefijo = '◉';
+                  } else if (tipo.includes('seguimiento')) {
+                    prefijo = '↻';
+                  }
+
                   return (
-                    <Box component="li" key={index} className="text-gray-800">
-                      <Typography variant="body2" className="mb-1">
-                        <span className="font-medium capitalize">{tipo}</span>
-                        {especialidad && (
-                          <span className="text-gray-600 text-xs ml-2">
-                            ({especialidad})
-                          </span>
-                        )}
-                        {prioridad && (
-                          <span className="text-gray-600 text-xs ml-2">
-                            [Prioridad: {prioridad}]
-                          </span>
-                        )}
-                        {descripcion && <span>: {descripcion}</span>}
-                      </Typography>
-                    </Box>
+                    <Typography
+                      component="li"
+                      key={index}
+                      variant="body2"
+                      className="text-gray-800 list-none"
+                    >
+                      {prefijo} {descripcion}
+                      {especialidad && (
+                        <span className="text-gray-600 text-xs ml-1">({especialidad})</span>
+                      )}
+                      {prioridad === 'alta' && (
+                        <span className="text-red-600 text-xs font-semibold ml-1">
+                          [Urgente]
+                        </span>
+                      )}
+                    </Typography>
                   );
                 })}
               </Box>
