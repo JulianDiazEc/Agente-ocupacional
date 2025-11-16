@@ -51,12 +51,13 @@ class ProcessorService:
         self.extractor = AzureDocumentExtractor()
         self.processor = ClaudeProcessor()
 
-    def process_single_document(self, file: FileStorage) -> Dict[str, Any]:
+    def process_single_document(self, file: FileStorage, save: bool = True) -> Dict[str, Any]:
         """
         Procesar un solo documento PDF
 
         Args:
             file: Archivo PDF cargado
+            save: Si True, guarda el resultado en disco. Si False, solo lo retorna (útil para consolidación)
 
         Returns:
             JSON con la HC procesada
@@ -79,14 +80,15 @@ class ProcessorService:
             # 3. Convertir a diccionario JSON serializable
             processed_data = historia_pydantic.model_dump(mode='json')
 
-            # 4. Guardar resultado usando el id_procesamiento del JSON
-            # (para que coincida al buscar luego)
-            processing_id = processed_data.get('id_procesamiento', file_id)
-            result_filename = f"{processing_id}.json"
-            result_path = self.processed_folder / result_filename
+            # 4. Guardar resultado solo si save=True
+            if save:
+                # Guardar usando el id_procesamiento del JSON (para que coincida al buscar luego)
+                processing_id = processed_data.get('id_procesamiento', file_id)
+                result_filename = f"{processing_id}.json"
+                result_path = self.processed_folder / result_filename
 
-            with open(result_path, 'w', encoding='utf-8') as f:
-                json.dump(processed_data, f, ensure_ascii=False, indent=2)
+                with open(result_path, 'w', encoding='utf-8') as f:
+                    json.dump(processed_data, f, ensure_ascii=False, indent=2)
 
             return processed_data
 
@@ -126,7 +128,8 @@ class ProcessorService:
         for i, file in enumerate(files, 1):
             try:
                 logger.info(f"Procesando archivo {i}/{len(files)}: {file.filename}")
-                result = self.process_single_document(file)
+                # No guardar archivos individuales (save=False), solo procesarlos para consolidar
+                result = self.process_single_document(file, save=False)
                 individual_results.append(result)
                 logger.info(f"✓ Archivo {i} procesado exitosamente")
             except Exception as e:
