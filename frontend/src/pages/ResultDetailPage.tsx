@@ -232,6 +232,7 @@ export const ResultDetailPage: React.FC = () => {
 
         {/* 3. Resumen Clínico Unificado (hallazgos + normales + alertas) */}
         <UnifiedClinicalCard
+          signos_vitales={selectedResult.signos_vitales}
           examenes={selectedResult.examenes}
           diagnosticos={selectedResult.diagnosticos}
           antecedentes={selectedResult.antecedentes}
