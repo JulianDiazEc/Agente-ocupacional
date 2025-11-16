@@ -22,8 +22,11 @@ class ProcessorService:
     """Servicio de procesamiento de HCs"""
 
     def __init__(self):
-        self.upload_folder = Path('backend/uploads')
-        self.processed_folder = Path('backend/processed')
+        # Obtener ruta base del proyecto backend (../backend/ desde app/services/)
+        backend_root = Path(__file__).resolve().parent.parent.parent
+
+        self.upload_folder = backend_root / 'uploads'
+        self.processed_folder = backend_root / 'processed'
 
         # Asegurar que las carpetas existen
         self.upload_folder.mkdir(exist_ok=True, parents=True)
