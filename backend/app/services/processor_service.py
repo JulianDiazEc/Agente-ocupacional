@@ -247,7 +247,7 @@ class ProcessorService:
                 historias.append(historia)
             except Exception as e:
                 # Si falla la validación, intentar con los datos raw
-                print(f"Warning: No se pudo validar resultado: {e}")
+                print("Warning: No se pudo validar resultado: %s" % (e,))
                 continue
 
         if not historias:

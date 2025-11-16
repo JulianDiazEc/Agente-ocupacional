@@ -149,7 +149,7 @@ def deduplicate_deterministic(items: list[dict], key: str, item_type: str = "ite
             seen_texts.add(text_normalized)
             deduplicated.append(item)
         else:
-            logger.debug(f"{item_type.capitalize()} duplicado exacto eliminado: '{text}'")
+            logger.debug("%s duplicado exacto eliminado: '%s'", item_type.capitalize(), text)
 
     if len(deduplicated) < len(items):
         logger.debug(
@@ -462,7 +462,7 @@ def consolidate_negation_antecedentes(antecedentes: list[dict]) -> list[dict]:
         desc = (ant.get("descripcion") or "").strip()
         if is_pure_negation(desc):
             saw_negation = True
-            logger.debug(f"Antecedente con negación pura filtrado: '{desc}'")
+            logger.debug("Antecedente con negación pura filtrado: '%s'", desc)
             continue
         cleaned.append(ant)
 
@@ -660,7 +660,7 @@ def relocate_misclassified_recommendations(historia_dict: dict) -> dict:
         # CASO 1: "Aplazado para..." → restricciones_especificas
         if re.search(r'\baplazad[oa]\s+(para|hasta|por)', desc_lower):
             restricciones_adicionales.append(descripcion)
-            logger.info(f"Reubicando 'aplazado' de recomendaciones a restricciones: '{descripcion[:60]}...'")
+            logger.info("Reubicando 'aplazado' de recomendaciones a restricciones: '%s...'", descripcion[:60])
 
             # Si aptitud no está definida, setearla como no_apto_temporal
             if not historia_dict.get('aptitud_laboral'):
@@ -691,14 +691,14 @@ def relocate_misclassified_recommendations(historia_dict: dict) -> dict:
             if programas_mencionados:
                 programas_sve_adicionales.update(programas_mencionados)
                 logger.info(
-                    f"Reubicando SVE de recomendaciones a programas_sve: "
-                    f"{programas_mencionados} desde '{descripcion[:60]}...'"
+                    "Reubicando SVE de recomendaciones a programas_sve: %s desde '%s...'",
+                    programas_mencionados, descripcion[:60]
                 )
                 continue  # NO agregar a recomendaciones_validas
             else:
                 # Si no se pudo extraer programa específico, conservar en recomendaciones
                 # (probablemente tiene contexto adicional útil)
-                logger.debug(f"No se pudo extraer programa SVE específico de: '{descripcion[:60]}...'")
+                logger.debug("No se pudo extraer programa SVE específico de: '%s...'", descripcion[:60])
 
         # Si no es ningún caso especial, conservar como recomendación válida
         recomendaciones_validas.append(rec)
@@ -1127,7 +1127,7 @@ class ClaudeProcessor:
             return historia
 
         except Exception as e:
-            logger.error(f"Error procesando {archivo_origen}: {e}")
+            logger.error("Error procesando %s: %s", archivo_origen, e)
             raise
 
     def _parse_claude_response(self, response_text: str) -> Dict[str, Any]:
@@ -1224,7 +1224,7 @@ class ClaudeProcessor:
                             historia = self.process(texto, archivo)
                             historias.append(historia)
                         except Exception as e:
-                            logger.error(f"Error procesando {archivo}: {e}")
+                            logger.error("Error procesando %s: %s", archivo, e)
                         finally:
                             progress.update(task, advance=1)
             except ImportError:
@@ -1234,14 +1234,14 @@ class ClaudeProcessor:
                         historia = self.process(texto, archivo)
                         historias.append(historia)
                     except Exception as e:
-                        logger.error(f"Error procesando {archivo}: {e}")
+                        logger.error("Error procesando %s: %s", archivo, e)
         else:
             for texto, archivo in textos:
                 try:
                     historia = self.process(texto, archivo)
                     historias.append(historia)
                 except Exception as e:
-                    logger.error(f"Error procesando {archivo}: {e}")
+                    logger.error("Error procesando %s: %s", archivo, e)
 
         logger.info(
             f"Batch completado: {len(historias)}/{len(textos)} historias procesadas exitosamente"

@@ -228,7 +228,7 @@ def filter_recommendations(recomendaciones: List[Dict], historia_dict: Dict) -> 
 
         if tiene_contexto:
             filtered.append(rec)
-            logger.debug(f"Recomendación conservada (contexto clínico): '{descripcion[:60]}...'")
+            logger.debug("Recomendación conservada (contexto clínico): '%s...'", descripcion[:60])
             continue
 
         # REGLA 1: Nombre suelto de examen (≤3 palabras + es examen conocido)
