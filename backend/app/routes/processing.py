@@ -47,7 +47,7 @@ def process_document():
         return jsonify(result), 200
 
     except Exception as e:
-        return jsonify({'error': f'Error al procesar documento: {str(e)}'}), 500
+        return jsonify({'error': 'Error al procesar documento: ' + str(e)}), 500
 
 
 @bp.route('/process-person', methods=['POST'])
@@ -75,9 +75,9 @@ def process_person():
     # Validar cada archivo
     for file in files:
         if not allowed_file(file.filename):
-            return jsonify({'error': f'Archivo no permitido: {file.filename}'}), 400
+            return jsonify({'error': 'Archivo no permitido: ' + str(file.filename)}), 400
         if not validate_file_size(file):
-            return jsonify({'error': f'Archivo muy grande: {file.filename}'}), 400
+            return jsonify({'error': 'Archivo muy grande: ' + str(file.filename)}), 400
 
     try:
         # Procesar y consolidar documentos
@@ -85,7 +85,7 @@ def process_person():
         return jsonify(result), 200
 
     except Exception as e:
-        return jsonify({'error': f'Error al procesar documentos: {str(e)}'}), 500
+        return jsonify({'error': 'Error al procesar documentos: ' + str(e)}), 500
 
 
 @bp.route('/results', methods=['GET'])
@@ -100,7 +100,7 @@ def get_all_results():
         results = processor_service.get_all_results()
         return jsonify(results), 200
     except Exception as e:
-        return jsonify({'error': f'Error al obtener resultados: {str(e)}'}), 500
+        return jsonify({'error': 'Error al obtener resultados: ' + str(e)}), 500
 
 
 @bp.route('/results/<result_id>', methods=['GET'])
@@ -121,7 +121,7 @@ def get_result(result_id):
         else:
             return jsonify({'error': 'Resultado no encontrado'}), 404
     except Exception as e:
-        return jsonify({'error': f'Error al obtener resultado: {str(e)}'}), 500
+        return jsonify({'error': 'Error al obtener resultado: ' + str(e)}), 500
 
 
 @bp.route('/export/excel', methods=['POST'])
@@ -148,7 +148,7 @@ def export_to_excel():
             download_name='resultados_hc.xlsx'
         )
     except Exception as e:
-        return jsonify({'error': f'Error al exportar a Excel: {str(e)}'}), 500
+        return jsonify({'error': 'Error al exportar a Excel: ' + str(e)}), 500
 
 
 @bp.route('/stats', methods=['GET'])
@@ -163,4 +163,4 @@ def get_statistics():
         stats = processor_service.get_statistics()
         return jsonify(stats), 200
     except Exception as e:
-        return jsonify({'error': f'Error al obtener estadísticas: {str(e)}'}), 500
+        return jsonify({'error': 'Error al obtener estadísticas: ' + str(e)}), 500
