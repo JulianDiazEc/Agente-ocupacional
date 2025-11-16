@@ -6,7 +6,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, CircularProgress, Typography, Button as MuiButton } from '@mui/material';
-import { ArrowBack, Download, Description } from '@mui/material/icons-material';
+import { ArrowBack, Download, Description } from '@mui/icons-material';
 import { Alert } from '@/components/common/Alert';
 import { useResults } from '@/contexts';
 import { exportService } from '@/services';
