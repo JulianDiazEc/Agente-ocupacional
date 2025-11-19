@@ -42,9 +42,11 @@ export const processingService = {
   ): Promise<HistoriaClinicaConsolidada> {
     const formData = createFormData({
       files,
-      person_id: metadata.personId || 'consolidated',
-      empresa: metadata.empresa,
+      empresa_id: metadata.empresaId,
+      empresa: metadata.empresaNombre,
       documento: metadata.documento,
+      ges_id: metadata.gesId,
+      cargo: metadata.cargo,
     });
 
     const response = await api.post<HistoriaClinicaConsolidada>(

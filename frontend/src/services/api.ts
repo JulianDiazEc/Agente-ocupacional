@@ -5,8 +5,8 @@
 
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-// Base URL desde variables de entorno
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Base URL desde variables de entorno (fallback relativo a la origin actual)
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Timeout para procesamiento (5 minutos)
 const TIMEOUT = 5 * 60 * 1000; // 300000ms

@@ -473,8 +473,7 @@ Retorna un JSON con:
     "exactitud_aptitud": 1.0,
     "score_global": 0.90,
     "errores_criticos": [],
-    "errores_menores": [],
-    "recomendaciones": []
+    "errores_menores": []
 }}"""
 
 
@@ -722,94 +721,30 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
    - NO cambiar aptitud solo porque hay hallazgos o recomendaciones
 
 5. RECOMENDACIONES - SOLO LAS ESPECÍFICAS:
-   ✅ EXTRAER:
-   - Remisiones a especialistas
-   - Exámenes complementarios específicos
-   - Inclusión en programas SVE
-   - Tratamientos específicos
+ NO debes extraer ni reutilizar las recomendaciones ni remisiones de la IPS.
 
-   ❌ NO EXTRAER (genéricas):
-   - "Pausas activas"
-   - "Uso de EPP"
-   - "Mantener hábitos saludables"
+   - Ignora secciones con títulos como:
+     • "Recomendaciones", "Conducta", "Manejo", "Plan"
+     • "Remisión", "Remisiones", "Remitir a EPS/ARL"
+     • "Seguimiento por...", "Control por..."
 
-   ⚠️ CAMPOS A LLENAR:
-   - tipo: (remision_especialista, examen_complementario, inclusion_sve, tratamiento, restriccion_laboral, ajuste_ergonomico, seguimiento)
-   - descripcion: texto específico de la recomendación
-   - vigencia_meses: solo si se menciona explícitamente
-   - requiere_seguimiento: true/false
+   - No copies frases como:
+     • "Seguimiento en optometría de su EPS"
+     • "Control de lípidos por médico general"
+     • "Remisión a EPS / ARL"
+     • "Control por especialista X"
 
-   ⚠️ RESTRICCIÓN LABORAL vs RECOMENDACIÓN GENERAL:
-   - Marcar tipo como "restriccion_laboral" SOLO cuando el documento diga EXPLÍCITAMENTE:
-     * "restricción para..."
-     * "no apto para..."
-     * "limitación laboral para..."
-     * "debe evitar..." (en contexto de limitación)
-   - Recomendaciones de seguimiento médico/controles: tipo "seguimiento", NO "restriccion_laboral"
-   - Remisiones a especialistas: tipo "remision_especialista", NO "restriccion_laboral"
+   - No inventes recomendaciones ni remisiones propias.
+     Ese análisis lo realizará otro motor ocupacional.
 
-   🚫 IMPORTANTE - EVITAR DUPLICADOS:
-   - NO generes recomendaciones duplicadas o muy similares entre sí
-   - NO generes remisiones duplicadas a la misma especialidad con motivos similares
-   - Si encuentras múltiples menciones del mismo seguimiento/control, consolida en UNA sola entrada
-   - Si una misma especialidad requiere seguimiento múltiple, unifica en UNA sola remisión con el motivo más completo
-
-   ❌ EJEMPLO INCORRECTO (duplicados):
-      recomendaciones: [
-         {{"tipo": "seguimiento", "descripcion": "Seguimiento en optometría de su EPS"}},
-         {{"tipo": "seguimiento", "descripcion": "Seguimiento en optometría por EPS"}}
-      ]
-      remisiones: [
-         {{"especialidad": "Optometría", "motivo": "Seguimiento de astigmatismo leve no corregido"}},
-         {{"especialidad": "Optometría", "motivo": "Seguimiento por astigmatismo leve"}}
-      ]
-
-   ✅ EJEMPLO CORRECTO (consolidado):
-      recomendaciones: [
-         {{"tipo": "seguimiento", "descripcion": "Seguimiento en optometría por EPS"}}
-      ]
-      remisiones: [
-         {{"especialidad": "Optometría", "motivo": "Seguimiento de astigmatismo leve no corregido"}}
-      ]
-
-6. RESTRICCIONES LABORALES (campo restricciones_especificas):
-
-   ⚠️ DISTINCIÓN CRÍTICA - Restricción vs Recomendación:
-
-   restricciones_especificas es un campo de TEXTO LIBRE que contiene SOLO:
-   - Limitaciones o PROHIBICIONES de ACTIVIDAD LABORAL específicas
-
-   ✅ SÍ va en restricciones_especificas:
-      - "No levantar cargas mayores a 15kg"
-      - "No trabajar en alturas superiores a 1.5m"
-      - "Evitar exposición a solventes orgánicos"
-      - "No conducir vehículos"
-      - "No trabajar en turno nocturno"
-      - "Evitar movimientos repetitivos de flexo-extensión de muñeca"
-      - "No permanecer de pie por más de 4 horas continuas"
-
-   ❌ NO va en restricciones_especificas (van en recomendaciones):
-      - "Uso de lentes de corrección" → Es recomendación de EPP
-      - "Uso de protector auditivo" → Es recomendación de EPP
-      - "Uso de guantes" → Es recomendación de EPP
-      - "Control médico en 6 meses" → Es recomendación de seguimiento
-      - "Remisión a oftalmología" → Es recomendación de remisión
-      - "Pausas activas" → Es recomendación general
-      - "Ajuste de silla ergonómica" → Es recomendación de ajuste ergonómico
-
-   REGLA DE ORO:
-   - Si dice "NO [verbo]" o "EVITAR [actividad]" → restricciones_especificas
-   - Si dice "USO DE [EPP]" o "CONTROL [médico]" → recomendaciones
-   - Si NO hay restricciones explícitas de actividad → dejar campo vacío (null)
-
-7. VALIDACIÓN Y ALERTAS:
+6. VALIDACIÓN Y ALERTAS:
    Genera alertas cuando detectes:
    a) INCONSISTENCIAS DIAGNÓSTICAS: Diagnóstico sin soporte en exámenes
    b) DATOS FALTANTES CRÍTICOS: Diagnóstico sin código CIE-10, aptitud no definida
    c) VALORES CRÍTICOS: PA ≥180/110, Glicemia ≥200, IMC <16 o >40
    d) FORMATO INCORRECTO: Código CIE-10 erróneo, fechas no ISO
 
-8. DATOS DEL EMPLEADO - REGLAS ANTI-FALSOS POSITIVOS:
+7. DATOS DEL EMPLEADO - REGLAS ANTI-FALSOS POSITIVOS:
 
    a) TIPO DE DOCUMENTO:
       ⚠️ REGLA CRÍTICA ANTI-FALSOS POSITIVOS:
@@ -855,12 +790,12 @@ REGLAS CRÍTICAS DE EXTRACCIÓN:
       - Sexo: Solo M, F, O (no "masculino", "femenino" - convertir a letra)
       - Documento: Extraer el número completo sin puntos ni espacios
 
-9. DATOS FALTANTES:
+8. DATOS FALTANTES:
    - Si un campo no está en la HC, usa null
    - NO inventes valores médicos
    - Si algo es ambiguo, extráelo y marca confianza baja + alerta
 
-10. NIVEL DE CONFIANZA:
+9. NIVEL DE CONFIANZA:
    - 1.0: Dato explícito y claro
    - 0.9: Dato explícito pero formato no estándar
    - 0.7: Dato con jerga médica ambigua

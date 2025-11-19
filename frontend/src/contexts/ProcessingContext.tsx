@@ -15,9 +15,11 @@ export type ProcessingStatus = 'idle' | 'uploading' | 'processing' | 'success' |
  * Metadata del empleado
  */
 export interface EmpleadoMetadata {
-  personId?: string;
-  empresa: string;
+  empresaId: string;
+  empresaNombre: string;
   documento: string;
+  gesId?: string;
+  cargo?: string;
 }
 
 /**

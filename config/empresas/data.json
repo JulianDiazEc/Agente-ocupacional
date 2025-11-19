@@ -1,0 +1,250 @@
+{
+  "empresas": [
+    {
+      "id": "emp-001",
+      "nombre": "SERSOCIAL S.A.",
+      "nit": "900000001-1",
+      "ciudad": "Barranquilla",
+      "departamento": "Atlántico",
+      "sector_economico": "Servicios de salud",
+      "responsable_sst": {
+        "nombre": "Coordinador SST",
+        "correo": "sst@sersocial.com",
+        "telefono": "3000000000"
+      },
+      "ges_ids": [
+        "ges-001",
+        "ges-002"
+      ],
+      "sve_ids": [
+        "sve-001",
+        "sve-002"
+      ],
+      "activo": true
+    },
+    {
+      "nombre": "Fundacion Ser Social",
+      "nit": "ss",
+      "responsable_sst_nombre": "Claudia Pacheco",
+      "responsable_sst_email": "cpacheco@salud.co",
+      "responsable_sst_telefono": "aso",
+      "id": "emp-b70e16af"
+    }
+  ],
+  "ges": [
+    {
+      "id": "ges-001",
+      "empresa_id": "emp-001",
+      "codigo": "GES1",
+      "nombre": "SERSOCIAL EDUCATIVO CAMPO",
+      "descripcion": "Docentes y personal educativo en campo",
+      "cargos": [
+        "Docente",
+        "Facilitador comunitario"
+      ],
+      "peligros_principales": [
+        "Biológicos",
+        "Locativos",
+        "Psicosociales"
+      ],
+      "examenes_incluidos": [
+        "Evaluación médica ocupacional anual",
+        "Audiometría según exposición",
+        "Visiometría"
+      ],
+      "criterios_clinicos": "Control anual y cuando se presenten incidentes biológicos",
+      "relacion_examenes": "Resultados alterados → seguimiento por SST y remisión según necesidad",
+      "activo": true
+    },
+    {
+      "id": "ges-002",
+      "empresa_id": "emp-001",
+      "codigo": "GES3",
+      "nombre": "SERSOCIAL ADMINISTRATIVO TÉCNICO",
+      "descripcion": "Personal administrativo y técnico en sede",
+      "cargos": [
+        "Auxiliar administrativo",
+        "Coordinador"
+      ],
+      "peligros_principales": [
+        "Ergonómicos",
+        "Psicosociales"
+      ],
+      "examenes_incluidos": [
+        "Examen médico periódico",
+        "Valoración osteomuscular",
+        "Pausa activa dirigida"
+      ],
+      "criterios_clinicos": "Seguimiento osteomuscular ante hallazgos en examen físico",
+      "relacion_examenes": "Hallazgos ergonómicos → intervención de puesto y educación",
+      "activo": true
+    },
+    {
+      "nombre": "GES 1 – Educativo y de Campo",
+      "descripcion": "Personal educativo y de campo",
+      "cargos": [
+        "Agente educativo",
+        "Asistente técnico",
+        "Auxiliar de Gestión del Riesgo",
+        "Gestor(a) de Atención Integral",
+        "Asistente de Participación Social",
+        "Gestora de Atención al Usuario",
+        "Auxiliar de Mercadeo"
+      ],
+      "peligros_principales": [
+        "Biomecánico",
+        "Psicosocial",
+        "Físico",
+        "Biològico"
+      ],
+      "examenes_incluidos": [
+        "- Examen médico ocupacional con énfasis osteomuscular",
+        "- Optometría",
+        "- Glicemia",
+        "- Perfil lipídico",
+        "- Cuadro hemático",
+        "- Radiografía de columna lumbosacra"
+      ],
+      "criterios_clinicos": "- Limitación funcional que impida desplazarse o interactuar.\n- Alteración visual no corregible.\n- Trastorno mental no controlado.\n- Enfermedad respiratoria contagiosa activa.\n\n### 4.2 Aplazamiento (Temporal)\n- Dolor osteomuscular sin diagnóstico → remitir.\n- TA o glicemia alteradas → control EPS.\n- Ansiedad reactiva → intervención y retorno.",
+      "relacion_examenes": "1. Osteomuscular: Dolor o limitación, Aplazado → Remisión | Impacta movilidad en campo.\n2. Optometría: Agudeza visual <20/40 sin corrección, Aplazado según corrección, Requiere lectura e interacción visual. |\n| Glicemia / Perfil lipídico | Alteración metabólica | Aplazado → Manejo EPS | Reduce tolerancia a esfuerzo. |\n| Cuadro hemático | Anemia / leucocitosis | Aplazado | Fatiga / Riesgo infeccioso. |\n| Rx Lumbosacra | Hernias / artrosis limitante | Restriccion si compromete movilidad | Actividades requieren desplazamiento continuo.",
+      "empresa_id": "emp-b70e16af",
+      "id": "emp-b70e16af-ges-3"
+    },
+    {
+      "nombre": "Asistencial y de Apoyo en Salud",
+      "descripcion": "",
+      "cargos": [
+        "Enfermera",
+        "Auxiliar de enfermeria",
+        "Psicológo"
+      ],
+      "peligros_principales": [
+        "Biologico",
+        "Biomecánico",
+        "Psicosocial",
+        "Químico"
+      ],
+      "examenes_incluidos": [
+        "- Examen médico ocupacional con énfasis osteomuscular",
+        "- Optometría",
+        "- Glicemia",
+        "- Perfil lipídico",
+        "- Cuadro hemático",
+        "- Radiografía de columna lumbosacra",
+        "- HBsAg"
+      ],
+      "criterios_clinicos": "## 4.1 Restricción\n- Enfermedad transmisible activa sin control.\n- Limitación funcional que impida asistencia física.\n- Trastorno psiquiátrico descompensado.\n\n### 4.2 Aplazamiento (Temporal)\n- Dolor musculoesquelético sin diagnóstico → remitir.\n- Hipertensión / glicemia alterada → control.\n- Fatiga emocional → intervención.",
+      "relacion_examenes": "| Osteomuscular | Tendinitis, lumbalgia | Aplazado → Remisión | Impacta asistencia segura. |\n| Optometría | Agudeza visual deficiente | No apto si no corregible | Requerido para procedimientos seguros. |\n| Glicemia / Perfil lipídico | Descontrol metabólico | Aplazado → Control EPS | Riesgo cardiovascular y fatiga. |\n| Cuadro hemático | Anemia / infección | Aplazado | Afecta tolerancia al esfuerzo. |\n| Rx lumbosacra | Hernias, artrosis limitante | No apto si afecta movilización | Cuidado domiciliario requiere movilidad estable. |\n| HBsAg | Positivo no controlado | Aplazado → Valoración | Determinar estado clínico y contagiosidad. |",
+      "empresa_id": "emp-b70e16af",
+      "id": "emp-b70e16af-ges-4"
+    },
+    {
+      "nombre": "GES 3 – Administrativo y Técnico",
+      "descripcion": "",
+      "cargos": [
+        "auxiliar administrativo",
+        "Auxiliar TIC e Innovación",
+        "Asistente Técnico (área administrativa)",
+        "Gestora de Atención al Usuario (cuando no es territorial)",
+        "profesional administrativo",
+        "gestor comercial"
+      ],
+      "peligros_principales": [
+        "biomecánico",
+        "físico",
+        "psicosocial"
+      ],
+      "examenes_incluidos": [
+        "Examen médico ocupacional con énfasis osteomuscular",
+        "- Optometría",
+        "- Glicemia",
+        "- Perfil lipídico",
+        "- Cuadro hemático",
+        "- Radiografía de columna lumbosacra"
+      ],
+      "relacion_examenes": "| Osteomuscular | Dolor cervical / lumbar | Aplazado si funcional |\n| Optometría | Alteración visual corregible | Aplazado → corrección |\n| Metabólicos / Hematológicos | Alteraciones controlables | Aplazado → manejo |\n| Rx Lumbosacra | Cambios estructurales severos | No apto si funcionalmente limitante |",
+      "empresa_id": "emp-b70e16af",
+      "id": "emp-b70e16af-ges-5",
+      "criterios_clinicos": ""
+    },
+    {
+      "nombre": "GES 4 – Operativo y Mantenimiento",
+      "descripcion": "",
+      "cargos": [
+        "Auxiliar de servicios generales"
+      ],
+      "peligros_principales": [
+        "físico",
+        "mecánico",
+        "seguridad",
+        "biomecanico"
+      ],
+      "examenes_incluidos": [
+        "- Examen médico ocupacional con énfasis osteomuscular",
+        "- Radiografía de columna lumbosacra",
+        "- Cuadro hemático",
+        "- Glicemia",
+        "- Perfil lipídico",
+        "- Optometría",
+        "- Audiometría (si hay ruido)",
+        "- Espirometría (si maneja químicos volátiles)"
+      ],
+      "relacion_examenes": "| Osteomuscular | Limitación de fuerza / movilidad | No apto si afecta labor |\n| Rx Lumbosacra | Artrosis / hernia limitante | No apto / manejo EPS |\n| Audiometría | Hipoacusia | Aplazado → manejo |\n| Espirometría | Alteración respiratoria | Aplazado → manejo |\n| Metabólicos / Hematológicos | Alteraciones controlables | Aplazado → seguimiento EPS |",
+      "empresa_id": "emp-b70e16af",
+      "id": "emp-b70e16af-ges-6",
+      "criterios_clinicos": null
+    }
+  ],
+  "sve": [
+    {
+      "id": "sve-001",
+      "empresa_id": "emp-001",
+      "tipo": "osteomuscular",
+      "nombre": "SVE Osteomuscular",
+      "descripcion": "Vigilancia de TME en miembros superiores y columna",
+      "objetivo": "Detectar precozmente trastornos osteomusculares relacionados con el trabajo",
+      "estado": "activo",
+      "activo": true
+    },
+    {
+      "id": "sve-002",
+      "empresa_id": "emp-001",
+      "tipo": "cardiovascular",
+      "nombre": "SVE Cardiovascular",
+      "descripcion": "Seguimiento de factores de riesgo CV",
+      "objetivo": "Controlar variables metabólicas y cardiovasculares",
+      "estado": "activo",
+      "activo": true
+    },
+    {
+      "id": "emp-b70e16af-sve-1",
+      "empresa_id": "emp-b70e16af",
+      "tipo": "cardiovascular",
+      "nombre": "Cardiovascular",
+      "descripcion": "",
+      "objetivo": "",
+      "estado": "activo",
+      "diagnosticos_cie10": []
+    },
+    {
+      "id": "emp-b70e16af-sve-2",
+      "empresa_id": "emp-b70e16af",
+      "tipo": "psicosocial",
+      "nombre": "Psicosocial",
+      "descripcion": "",
+      "objetivo": "",
+      "estado": "activo",
+      "diagnosticos_cie10": []
+    },
+    {
+      "id": "emp-b70e16af-sve-3",
+      "empresa_id": "emp-b70e16af",
+      "tipo": "dme",
+      "nombre": "Dme",
+      "descripcion": "",
+      "objetivo": "",
+      "estado": "activo",
+      "diagnosticos_cie10": []
+    }
+  ]
+}

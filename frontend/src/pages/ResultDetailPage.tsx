@@ -3,9 +3,9 @@
  * Muestra información completa de una historia clínica procesada
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, CircularProgress, Typography, Button as MuiButton } from '@mui/material';
+import { Box, CircularProgress, Typography, Button as MuiButton, Chip, Stack } from '@mui/material';
 import { ArrowBack, Download, Description } from '@mui/icons-material';
 import { Alert } from '@/components/common/Alert';
 import { useResults } from '@/contexts';
@@ -56,6 +56,50 @@ export const ResultDetailPage: React.FC = () => {
       setExporting(false);
     }
   };
+
+  const formatSveLabel = (
+    alerta: { nombre?: string | null; sve_target_id?: string | null; sve_id?: string | null }
+  ) => {
+    const rawName = (alerta.nombre || '').trim();
+    if (rawName) {
+      const normalized = rawName.replace(/^Riesgo\s+/i, '').trim();
+      return normalized || rawName;
+    }
+
+    const sveId = alerta.sve_target_id || alerta.sve_id;
+    if (sveId) {
+      return sveId
+        .replace(/^sve-/, '')
+        .split('-')
+        .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : ''))
+        .join(' ')
+        .trim();
+    }
+
+    return 'SVE';
+  };
+
+  const { alertasSveLabels, derivarEpsLabels } = useMemo(() => {
+    if (!selectedResult) {
+      return {
+        alertasSveLabels: [] as string[],
+        derivarEpsLabels: [] as string[],
+      };
+    }
+
+    const alertas =
+      selectedResult.alertas_sve?.map((alerta) => formatSveLabel(alerta)) ?? [];
+
+    const derivaciones =
+      selectedResult.derivar_eps && selectedResult.derivar_eps.length > 0
+        ? ['Remisión a entidad de salud para hallazgos identificados']
+        : [];
+
+    return {
+      alertasSveLabels: Array.from(new Set(alertas)),
+      derivarEpsLabels: derivaciones,
+    };
+  }, [selectedResult]);
 
   /**
    * Loading
@@ -202,6 +246,37 @@ export const ResultDetailPage: React.FC = () => {
           alertas={selectedResult.alertas_validacion}
         />
 
+        {derivarEpsLabels.length > 0 && (
+          <Box className="bg-white border border-gray-200 rounded-lg p-6 mt-6 space-y-4">
+            <Typography variant="subtitle2" className="font-semibold text-gray-700">
+              Alertas y remisiones
+            </Typography>
+            <Box>
+              <Typography variant="subtitle2" className="font-semibold text-gray-700 mt-2">
+                Remisiones
+              </Typography>
+              <ul className="list-disc list-inside text-sm text-gray-700">
+                {derivarEpsLabels.map((label) => (
+                  <li key={label}>{label}</li>
+                ))}
+              </ul>
+            </Box>
+          </Box>
+        )}
+
+        {alertasSveLabels.length > 0 && (
+          <Box className="bg-white border border-gray-200 rounded-lg p-6 mt-6 space-y-4">
+            <Typography variant="subtitle2" className="font-semibold text-gray-700">
+              Alertas
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              {alertasSveLabels.map((label) => (
+                <Chip key={label} label={label} color="primary" variant="outlined" size="small" />
+              ))}
+            </Stack>
+          </Box>
+        )}
+
         {/* 4. Metadata de procesamiento */}
         <Box className="bg-gray-50 border border-gray-200 rounded-lg p-6 mt-8">
           <Typography variant="subtitle2" className="font-semibold text-gray-700 mb-4">
@@ -237,6 +312,7 @@ export const ResultDetailPage: React.FC = () => {
             </Box>
           </Box>
         </Box>
+
       </div>
     </Box>
   );

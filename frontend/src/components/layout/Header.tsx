@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, Upload, BarChart3, Download } from 'lucide-react';
+import { FileText, Upload, BarChart3, Download, Building2 } from 'lucide-react';
 
 interface HeaderProps {
   className?: string;
@@ -18,6 +18,7 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
     { path: '/upload', label: 'Cargar', icon: <Upload size={18} /> },
     { path: '/results', label: 'Resultados', icon: <FileText size={18} /> },
     { path: '/stats', label: 'Estadísticas', icon: <BarChart3 size={18} /> },
+    { path: '/admin/empresas', label: 'Empresas', icon: <Building2 size={18} /> },
   ];
 
   const isActive = (path: string) => {

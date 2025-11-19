@@ -37,6 +37,7 @@ class ProcessorService:
 
         self.upload_folder = Path(config.UPLOAD_FOLDER)
         self.processed_folder = Path(config.PROCESSED_FOLDER)
+        self.partials_folder = self.processed_folder / "partials"
 
         # Log de las rutas para debugging
         logger.info(f"ProcessorService inicializado")
@@ -46,12 +47,18 @@ class ProcessorService:
         # Asegurar que las carpetas existen
         self.upload_folder.mkdir(exist_ok=True, parents=True)
         self.processed_folder.mkdir(exist_ok=True, parents=True)
+        self.partials_folder.mkdir(exist_ok=True, parents=True)
 
         # Inicializar procesadores (del CLI existente)
         self.extractor = AzureDocumentExtractor()
         self.processor = ClaudeProcessor()
 
-    def process_single_document(self, file: FileStorage, save: bool = True) -> Dict[str, Any]:
+    def process_single_document(
+        self,
+        file: FileStorage,
+        save: bool = True,
+        output_folder: Optional[Path] = None,
+    ) -> Dict[str, Any]:
         """
         Procesar un solo documento PDF
 
@@ -79,13 +86,16 @@ class ProcessorService:
 
             # 3. Convertir a diccionario JSON serializable
             processed_data = historia_pydantic.model_dump(mode='json')
+            processed_data['recomendaciones'] = []
+            processed_data['remisiones'] = []
 
             # 4. Guardar resultado solo si save=True
             if save:
+                target_folder = output_folder or self.processed_folder
                 # Guardar usando el id_procesamiento del JSON (para que coincida al buscar luego)
                 processing_id = processed_data.get('id_procesamiento', file_id)
                 result_filename = f"{processing_id}.json"
-                result_path = self.processed_folder / result_filename
+                result_path = target_folder / result_filename
 
                 with open(result_path, 'w', encoding='utf-8') as f:
                     json.dump(processed_data, f, ensure_ascii=False, indent=2)
@@ -100,9 +110,12 @@ class ProcessorService:
     def process_person_documents(
         self,
         files: List[FileStorage],
-        person_id: str,
-        empresa: str = None,
-        documento: str = None
+        person_id: Optional[str],
+        empresa_id: Optional[str] = None,
+        empresa: Optional[str] = None,
+        documento: Optional[str] = None,
+        ges_id: Optional[str] = None,
+        cargo: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Procesar múltiples documentos de una persona y consolidar
@@ -128,8 +141,11 @@ class ProcessorService:
         for i, file in enumerate(files, 1):
             try:
                 logger.info(f"Procesando archivo {i}/{len(files)}: {file.filename}")
-                # No guardar archivos individuales (save=False), solo procesarlos para consolidar
-                result = self.process_single_document(file, save=False)
+                result = self.process_single_document(
+                    file,
+                    save=True,
+                    output_folder=self.partials_folder,
+                )
                 individual_results.append(result)
                 logger.info(f"✓ Archivo {i} procesado exitosamente")
             except Exception as e:
@@ -151,7 +167,7 @@ class ProcessorService:
         # Consolidar resultados
         try:
             logger.info(f"Iniciando consolidación de {len(individual_results)} historias")
-            consolidated = self._consolidate_historias(individual_results, person_id)
+            consolidated = self._consolidate_historias(individual_results, person_id or 'consolidated')
             logger.info("✓ Consolidación completada exitosamente")
         except Exception as e:
             logger.error(f"✗ Error en consolidación: {str(e)}", exc_info=True)
@@ -174,10 +190,16 @@ class ProcessorService:
         if 'datos_empleado' not in consolidated:
             consolidated['datos_empleado'] = {}
 
+        if empresa_id:
+            consolidated['datos_empleado']['empresa_id'] = empresa_id
         if empresa:
             consolidated['datos_empleado']['empresa'] = empresa
         if documento:
             consolidated['datos_empleado']['documento'] = documento
+        if ges_id:
+            consolidated['datos_empleado']['ges_id'] = ges_id
+        if cargo:
+            consolidated['datos_empleado']['cargo'] = cargo
 
         consolidated_filename = f"{file_id}.json"
         consolidated_path = self.processed_folder / consolidated_filename
@@ -528,8 +550,10 @@ class ProcessorService:
         consolidada['antecedentes'] = self._merge_antecedentes(historias)
         consolidada['examenes'] = self._merge_examenes(historias)
         consolidada['incapacidades'] = self._merge_incapacidades(historias)
-        consolidada['recomendaciones'] = self._merge_recomendaciones(historias)
-        consolidada['remisiones'] = self._merge_remisiones(historias)
+        # Las recomendaciones/remisiones extraídas de la IPS ya no se incorporan.
+        # Más adelante estas listas se poblarán únicamente con la lógica ocupacional (SVE + reglas).
+        consolidada['recomendaciones'] = []
+        consolidada['remisiones'] = []
 
         # IMPORTANTE: NO heredar alertas de documentos individuales
         # Las alertas se generarán solo sobre el consolidado final

@@ -12,6 +12,7 @@ import {
   ResultDetailPage,
   StatsPage,
 } from '@/pages';
+import { EmpresaListPage, EmpresaDetailPage } from '@modules/empresa';
 
 /**
  * Definición de rutas
@@ -41,6 +42,14 @@ const router = createBrowserRouter(
         {
           path: 'stats',
           element: <StatsPage />,
+        },
+        {
+          path: 'admin/empresas',
+          element: <EmpresaListPage />,
+        },
+        {
+          path: 'admin/empresas/:id',
+          element: <EmpresaDetailPage />,
         },
         {
           path: '*',

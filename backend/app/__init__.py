@@ -48,9 +48,11 @@ def create_app():
 
     # Registrar blueprints/routes
     from app.routes import processing, health
+    from app.routes.empresas import empresas_bp  # 👈 NUEVA LÍNEA
 
     app.register_blueprint(processing.bp, url_prefix='/api')
     app.register_blueprint(health.bp, url_prefix='/api')
+    app.register_blueprint(empresas_bp, url_prefix='/api')  # 👈 NUEVA LÍNEA
 
     # Error handlers
     @app.errorhandler(404)
