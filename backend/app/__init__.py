@@ -8,13 +8,19 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import sys
 import logging
+import os
 from pathlib import Path
+
+# Añadir el directorio backend primero para importar config
+backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, backend_dir)
+
+# Importar config desde el backend
+from config import get_config
 
 # Añadir el directorio src/ al PYTHONPATH para importar módulos del CLI
 project_root = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-from config import get_config
+sys.path.append(str(project_root))
 
 
 def create_app():
@@ -24,7 +30,15 @@ def create_app():
 
     # Cargar configuración
     config_class = get_config()
+    print(f"DEBUG: config_class = {config_class}")
+    print(f"DEBUG: config_class type = {type(config_class)}")
+    print(f"DEBUG: hasattr CORS_ORIGINS = {hasattr(config_class, 'CORS_ORIGINS')}")
+    
     app.config.from_object(config_class)
+    
+    # Debug: verificar que la configuración se cargó correctamente
+    print(f"DEBUG: CORS_ORIGINS = {app.config.get('CORS_ORIGINS', 'NOT FOUND')}")
+    print(f"DEBUG: Config keys = {list(app.config.keys())}")
 
     # Configurar logging
     logging.basicConfig(

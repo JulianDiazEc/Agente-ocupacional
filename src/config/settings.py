@@ -58,6 +58,12 @@ class Settings(BaseSettings):
         default=True,
         description="Habilitar prompt caching de Anthropic (reduce costos 90%)"
     )
+    cache_ttl_seconds: int = Field(
+        default=3600,
+        ge=300,
+        le=86400,
+        description="TTL del cache en segundos (default: 1 hora)"
+    )
 
     # ===================================================================
     # PROCESAMIENTO

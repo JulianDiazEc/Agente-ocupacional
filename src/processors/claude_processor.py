@@ -14,7 +14,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.config.schemas import HistoriaClinicaEstructurada
 from src.config.settings import get_settings
-from src.processors.prompts import get_extraction_prompt, get_extraction_prompt_cached
+from src.processors.prompts import get_extraction_prompt, get_simple_diagnosis_prompt
 from src.processors.recommendation_filters import filter_recommendations
 from src.utils.helpers import safe_json_loads
 from src.utils.logger import get_logger
@@ -34,8 +34,8 @@ INVALID_DIAGNOSIS_TERMS = [
     'radiografía', 'radiografia', 'laboratorios', 'paraclínicos',
     'paraclinicos', 'análisis', 'analisis',
 
-    # Hallazgos normales / sin enfermedad
-    'normal', 'sin hallazgos', 'examen ocupacional', 'control rutinario',
+    # Hallazgos normales / sin enfermedad (NOTA: 'normal' removido para evitar conflicto con 'anormal')
+    'sin hallazgos', 'examen ocupacional', 'control rutinario',
     'audicion normal', 'vision normal', 'dentro de limites normales',
     'sin alteraciones', 'sin patologia', 'sin anormalidades'
 ]
@@ -74,10 +74,11 @@ def filter_invalid_diagnoses(diagnosticos: list[dict]) -> list[dict]:
             for term in INVALID_DIAGNOSIS_TERMS
         )
 
-        # Caso especial: códigos de audición con descripción "normal"
+        # Caso especial: códigos de audición con descripción "normal" 
         # Ejemplo: H90.9 con descripción "audición normal bilateral"
-        if 'normal' in descripcion_lower and not is_invalid:
-            # Si la descripción dice "normal", es hallazgo normal, no diagnóstico
+        # IMPORTANTE: Excluir "anormal" que es un diagnóstico válido (R63.5 aumento anormal peso)
+        if 'normal' in descripcion_lower and 'anormal' not in descripcion_lower and not is_invalid:
+            # Si la descripción dice "normal" (pero NO "anormal"), es hallazgo normal, no diagnóstico
             is_invalid = True
             logger.debug(
                 f"Diagnóstico filtrado (hallazgo normal): '{descripcion}' ({codigo})"
@@ -943,6 +944,57 @@ class ClaudeProcessor:
             f"max_tokens: {self.max_tokens}, temperature: {self.temperature}"
         )
 
+    def _extract_diagnoses_simple(self, texto_extraido: str) -> list[dict]:
+        """
+        Extrae diagnósticos usando prompt ultra-simple.
+        
+        Args:
+            texto_extraido: Texto del documento médico
+            
+        Returns:
+            list[dict]: Lista de diagnósticos extraídos
+        """
+        try:
+            # Usar prompt simple para diagnósticos
+            prompt = get_simple_diagnosis_prompt(texto_extraido)
+            
+            logger.debug("Extrayendo diagnósticos con prompt simple")
+            
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=2000,  # Menor límite para diagnósticos
+                temperature=0.1,  # Más determinístico para diagnósticos
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            )
+            
+            response_text = response.content[0].text
+            
+            # Parsear respuesta
+            import re
+            # Extraer JSON si está en bloques de código
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+            if json_match:
+                response_text = json_match.group(1)
+            
+            result = safe_json_loads(response_text)
+            
+            if result and 'diagnosticos' in result:
+                diagnosticos = result['diagnosticos']
+                logger.info(f"Extraídos {len(diagnosticos)} diagnósticos con prompt simple")
+                return diagnosticos
+            else:
+                logger.warning("No se encontraron diagnósticos en respuesta simple")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Error extrayendo diagnósticos simples: {e}")
+            return []
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -980,18 +1032,25 @@ class ClaudeProcessor:
         settings = get_settings()
 
         try:
-            # Llamar a Claude API con o sin caching según configuración
+            # ENFOQUE HÍBRIDO: Extraer diagnósticos por separado con prompt simple
+            logger.info("Usando enfoque híbrido: diagnósticos simples + resto completo")
+            
+            # 1. Extraer diagnósticos con prompt ultra-simple (garantiza R63.5)
+            diagnosticos_simples = self._extract_diagnoses_simple(texto_extraido)
+            
+            # 2. Llamar a Claude API para el resto con o sin caching según configuración
             if settings.enable_prompt_caching:
                 # Usar prompt caching para reducir costos 90%
-                system_blocks, user_message = get_extraction_prompt_cached(
+                system_blocks, user_message = get_extraction_prompt(
                     texto_extraido=texto_extraido,
-                    context=context
+                    context=context,
+                    use_cache=True
                 )
 
-                logger.debug(
-                    f"Prompt con cache generado: "
+                logger.info(
+                    f"✅ USANDO CACHE: Prompt con cache generado: "
                     f"{len(system_blocks)} bloques de sistema + "
-                    f"{len(user_message)} caracteres de mensaje"
+                    f"{len(user_message)} caracteres de mensaje (ahorro ~90% costos)"
                 )
 
                 response = self.client.messages.create(
@@ -1010,10 +1069,11 @@ class ClaudeProcessor:
                 # Modo sin cache (backward compatibility)
                 prompt = get_extraction_prompt(
                     texto_extraido=texto_extraido,
-                    context=context
+                    context=context,
+                    use_cache=False
                 )
 
-                logger.debug(f"Prompt sin cache generado: {len(prompt)} caracteres")
+                logger.warning(f"⚠️  SIN CACHE: Prompt sin cache generado: {len(prompt)} caracteres (costos completos)")
 
                 response = self.client.messages.create(
                     model=self.model,
@@ -1034,6 +1094,11 @@ class ClaudeProcessor:
 
             # Parsear JSON
             historia_dict = self._parse_claude_response(response_text)
+            
+            # 3. COMBINAR: Reemplazar diagnósticos del prompt complejo con los simples
+            if diagnosticos_simples:
+                historia_dict['diagnosticos'] = diagnosticos_simples
+                logger.info(f"Diagnósticos reemplazados con extracción simple: {len(diagnosticos_simples)} encontrados")
 
             # Limpieza defensiva: Eliminar campos deprecados (eps, area)
             if 'datos_empleado' in historia_dict and historia_dict['datos_empleado']:

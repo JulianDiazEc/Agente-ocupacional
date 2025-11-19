@@ -79,7 +79,8 @@ class ProcessorService:
 
         try:
             # 1. Extraer texto con Azure
-            extracted_text = self.extractor.extract(temp_path)
+            extraction_result = self.extractor.extract(temp_path)
+            extracted_text = extraction_result.text
 
             # 2. Procesar con Claude (retorna objeto Pydantic)
             historia_pydantic = self.processor.process(extracted_text, filename)

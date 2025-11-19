@@ -74,6 +74,8 @@ config = {
 
 
 def get_config():
-    """Obtener configuración según FLASK_ENV"""
+    """
+    Retorna la clase de configuración Flask apropiada.
+    """
     env = os.getenv('FLASK_ENV', 'development')
     return config.get(env, config['default'])
