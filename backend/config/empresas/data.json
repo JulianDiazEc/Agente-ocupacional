@@ -1,0 +1,67 @@
+{
+  "empresas": [
+    {
+      "id": "emp-001",
+      "nombre": "Fundación Ser Social",
+      "nit": "900123456",
+      "responsable_sst_nombre": "María Fernanda Ruiz",
+      "responsable_sst_email": "mruiz@fundacionser.com",
+      "responsable_sst_telefono": "+57 300 456 7890"
+    },
+    {
+      "id": "emp-002",
+      "nombre": "Servicios Integrales Andinos",
+      "nit": "830987654",
+      "responsable_sst_nombre": "Carlos Restrepo",
+      "responsable_sst_email": "carlos.restrepo@sia.com",
+      "responsable_sst_telefono": "+57 310 987 6543"
+    }
+  ],
+  "ges": [
+    {
+      "id": "ges-001",
+      "empresa_id": "emp-001",
+      "nombre": "Operadores de campo",
+      "descripcion": "Personal que realiza visitas domiciliarias y actividades comunitarias",
+      "riesgos": [
+        "biomecánicos",
+        "psicosociales",
+        "locativos"
+      ]
+    },
+    {
+      "id": "ges-002",
+      "empresa_id": "emp-002",
+      "nombre": "Técnicos de laboratorio",
+      "descripcion": "Manejo de agentes químicos y biológicos en laboratorio central",
+      "riesgos": [
+        "químicos",
+        "biológicos",
+        "ergonómicos"
+      ]
+    }
+  ],
+  "sve": [
+    {
+      "id": "sve-001",
+      "empresa_id": "emp-001",
+      "nombre": "Cardiovascular",
+      "descripcion": "Seguimiento de dislipidemias y enfermedad hipertensiva",
+      "diagnosticos_cie10": [
+        "I10.0",
+        "E78.2",
+        "E66.0"
+      ]
+    },
+    {
+      "id": "sve-002",
+      "empresa_id": "emp-002",
+      "nombre": "Respiratorio",
+      "descripcion": "Control de asma ocupacional y EPOC en técnicos expuestos a químicos",
+      "diagnosticos_cie10": [
+        "J45.9",
+        "J44.9"
+      ]
+    }
+  ]
+}
