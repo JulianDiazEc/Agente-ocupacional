@@ -19,6 +19,9 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     DEBUG = os.getenv('FLASK_DEBUG', 'True').lower() == 'true'
 
+    # API Authentication
+    API_KEY = os.getenv('API_KEY')
+
     # Server
     HOST = os.getenv('HOST', '0.0.0.0')
     PORT = int(os.getenv('PORT', 5050))
@@ -64,6 +67,22 @@ class ProductionConfig(Config):
     """Configuración para producción"""
     DEBUG = False
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def validate(cls):
+        if cls.SECRET_KEY == 'dev-secret-key-change-in-production':
+            raise ValueError(
+                "SECRET_KEY no puede ser el valor por defecto en producción. "
+                "Configure SECRET_KEY en .env con un valor seguro."
+            )
+        if not cls.API_KEY:
+            raise ValueError(
+                "API_KEY es requerida en producción. "
+                "Configure API_KEY en .env."
+            )
+
 
 # Configuración por defecto
 config = {
@@ -76,6 +95,10 @@ config = {
 def get_config():
     """
     Retorna la clase de configuración Flask apropiada.
+    Valida configuración en producción.
     """
     env = os.getenv('FLASK_ENV', 'development')
-    return config.get(env, config['default'])
+    config_class = config.get(env, config['default'])
+    if env == 'production' and hasattr(config_class, 'validate'):
+        config_class.validate()
+    return config_class

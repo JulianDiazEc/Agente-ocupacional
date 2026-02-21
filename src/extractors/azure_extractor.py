@@ -13,6 +13,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.config.settings import get_settings
 from src.extractors.base import ExtractionResult, PDFExtractor
+from src.utils.cost_tracker import get_cost_tracker
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -101,8 +102,8 @@ class AzureDocumentExtractor(PDFExtractor):
                 document=pdf_bytes
             )
 
-            # Esperar resultado (puede tomar varios segundos)
-            result = poller.result()
+            # Esperar resultado con timeout (5 minutos máximo)
+            result = poller.result(timeout=300)
 
             # Extraer texto
             extracted_text = self._extract_text_from_result(result)
@@ -127,6 +128,13 @@ class AzureDocumentExtractor(PDFExtractor):
                 "api_version": result.api_version if hasattr(result, 'api_version') else None,
                 "table_count": table_count,
             }
+
+            # Registrar costos
+            cost_tracker = get_cost_tracker()
+            cost_tracker.log_azure_usage(
+                archivo=pdf_path.name,
+                page_count=len(result.pages)
+            )
 
             logger.info(
                 f"Extracción exitosa: {len(extracted_text)} caracteres, "

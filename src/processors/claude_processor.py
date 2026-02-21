@@ -8,15 +8,16 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from anthropic import Anthropic
+from anthropic import Anthropic, RateLimitError, APITimeoutError
 from pydantic import ValidationError
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from src.config.schemas import HistoriaClinicaEstructurada
 from src.config.settings import get_settings
 from src.processors.prompts import get_extraction_prompt, get_simple_diagnosis_prompt
 from src.processors.recommendation_filters import filter_recommendations
 from src.utils.helpers import safe_json_loads
+from src.utils.cost_tracker import get_cost_tracker
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -964,6 +965,7 @@ class ClaudeProcessor:
                 model=self.model,
                 max_tokens=2000,  # Menor límite para diagnósticos
                 temperature=0.1,  # Más determinístico para diagnósticos
+                timeout=120,  # 2 minutos para diagnósticos simples
                 messages=[
                     {
                         "role": "user",
@@ -971,7 +973,18 @@ class ClaudeProcessor:
                     }
                 ]
             )
-            
+
+            # Registrar costos
+            cost_tracker = get_cost_tracker()
+            cost_tracker.log_claude_usage(
+                model=self.model,
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+                archivo=f"diagnosticos_simples",
+                cache_read_tokens=getattr(response.usage, 'cache_read_input_tokens', 0) or 0,
+                cache_creation_tokens=getattr(response.usage, 'cache_creation_input_tokens', 0) or 0,
+            )
+
             response_text = response.content[0].text
             
             # Parsear respuesta
@@ -997,7 +1010,8 @@ class ClaudeProcessor:
 
     @retry(
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
+        wait=wait_exponential(multiplier=2, min=2, max=60),
+        retry=retry_if_exception_type((RateLimitError, APITimeoutError)),
         reraise=True
     )
     def process(
@@ -1057,6 +1071,7 @@ class ClaudeProcessor:
                     model=self.model,
                     max_tokens=self.max_tokens,
                     temperature=self.temperature,
+                    timeout=300,  # 5 minutos
                     system=system_blocks,  # System blocks cacheables
                     messages=[
                         {
@@ -1073,12 +1088,13 @@ class ClaudeProcessor:
                     use_cache=False
                 )
 
-                logger.warning(f"⚠️  SIN CACHE: Prompt sin cache generado: {len(prompt)} caracteres (costos completos)")
+                logger.warning(f"SIN CACHE: Prompt sin cache generado: {len(prompt)} caracteres (costos completos)")
 
                 response = self.client.messages.create(
                     model=self.model,
                     max_tokens=self.max_tokens,
                     temperature=self.temperature,
+                    timeout=300,  # 5 minutos
                     messages=[
                         {
                             "role": "user",
@@ -1086,6 +1102,17 @@ class ClaudeProcessor:
                         }
                     ]
                 )
+
+            # Registrar costos
+            cost_tracker = get_cost_tracker()
+            cost_tracker.log_claude_usage(
+                model=self.model,
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+                archivo=archivo_origen,
+                cache_read_tokens=getattr(response.usage, 'cache_read_input_tokens', 0) or 0,
+                cache_creation_tokens=getattr(response.usage, 'cache_creation_input_tokens', 0) or 0,
+            )
 
             # Extraer texto de la respuesta
             response_text = response.content[0].text
