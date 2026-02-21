@@ -171,6 +171,7 @@ export default defineConfig({
       '@utils': path.resolve(__dirname, './src/utils'),
       '@contexts': path.resolve(__dirname, './src/contexts'),
       '@theme': path.resolve(__dirname, './src/theme'),
+      '@modules': path.resolve(__dirname, './src/modules'),
     },
   },
   server: {

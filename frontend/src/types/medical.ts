@@ -210,6 +210,10 @@ export interface HistoriaClinicaProcesada {
   // Programas de vigilancia
   programas_sve: ProgramaSVE[];
 
+  // Alertas y derivaciones generadas por el motor ocupacional
+  alertas_sve?: AlertaSVE[];
+  derivar_eps?: DerivarEPSEntry[];
+
   // Vacunación
   vacunas?: Vacuna[];
 
@@ -240,6 +244,24 @@ export interface HistoriaClinicaConsolidada extends HistoriaClinicaProcesada {
     examenes: number;
     recomendaciones: number;
   };
+}
+
+export interface AlertaSVEDiagnostico {
+  codigo: string;
+  descripcion: string;
+}
+
+export interface AlertaSVE {
+  sve_target_id: string;
+  nombre: string;
+  descripcion: string;
+  diagnosticos: AlertaSVEDiagnostico[];
+}
+
+export interface DerivarEPSEntry {
+  sve_id: string;
+  especialista: string;
+  diagnosticos: AlertaSVEDiagnostico[];
 }
 
 // ============================================================================

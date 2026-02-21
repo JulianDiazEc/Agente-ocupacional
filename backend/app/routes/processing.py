@@ -6,8 +6,12 @@ from werkzeug.utils import secure_filename
 import os
 import logging
 from pathlib import Path
+from typing import Any, Dict
+import json
 
 from app.services.processor_service import ProcessorService
+from app.services import empresa_service
+from app.services.sve_service import evaluate_sve, canonicalize_sve_tokens, canonicalize_sve_id
 from app.utils.validators import allowed_file, validate_file_size
 
 logger = logging.getLogger(__name__)
@@ -45,8 +49,17 @@ def process_document():
         return jsonify({'error': 'El archivo excede el tamaño máximo de 10MB'}), 400
 
     try:
-        # Procesar documento
+        # Procesar documento y actualizar el archivo resultante
         result = processor_service.process_single_document(file)
+        processing_id = result.get('id_procesamiento')
+        if processing_id:
+            output_path = processor_service.processed_folder / f"{processing_id}.json"
+            try:
+                with output_path.open('w', encoding='utf-8') as fh:
+                    json.dump(result, fh, ensure_ascii=False, indent=2)
+            except Exception:
+                logger.exception("No se pudo actualizar el consolidado con alertas SVE: %s", output_path)
+
         return jsonify(result), 200
 
     except Exception:
@@ -73,14 +86,20 @@ def process_person():
         return jsonify({'error': 'No se enviaron archivos'}), 400
 
     files = request.files.getlist('files[]')
-    person_id = request.form.get('person_id', 'consolidated')
+    person_id = request.form.get('person_id')  # opcional (legacy)
+    empresa_id = request.form.get('empresa_id', '').strip()
     empresa = request.form.get('empresa', '')
     documento = request.form.get('documento', '')
+    ges_id = request.form.get('ges_id', '').strip()
+    cargo = request.form.get('cargo', '').strip()
 
     if len(files) == 0:
         return jsonify({'error': 'Lista de archivos vacía'}), 400
 
     # Validar campos requeridos
+    if not empresa_id:
+        return jsonify({'error': 'El campo empresa_id es requerido'}), 400
+
     if not empresa or not empresa.strip():
         return jsonify({'error': 'El campo empresa es requerido'}), 400
 
@@ -99,9 +118,66 @@ def process_person():
         result = processor_service.process_person_documents(
             files,
             person_id,
+            empresa_id=empresa_id,
             empresa=empresa.strip(),
-            documento=documento.strip()
+            documento=documento.strip(),
+            ges_id=ges_id or None,
+            cargo=cargo or None
         )
+
+        # Evaluar SVE con base en los diagnósticos consolidados
+        diagnosticos_codes = [
+            diag.get('codigo_cie10')
+            for diag in (result.get('diagnosticos') or [])
+            if diag.get('codigo_cie10')
+        ]
+
+        empresa_detalle = empresa_service.get_empresa(empresa_id)
+        sve_entries = (empresa_detalle or {}).get('sve', []) if empresa_detalle else []
+
+        empresa_sve_tokens: list[str] = []
+
+        def register_token(token_source: Any) -> None:
+            for token in canonicalize_sve_tokens(token_source):
+                if token:
+                    empresa_sve_tokens.append(token)
+            canonical = canonicalize_sve_id(token_source)
+            if canonical:
+                empresa_sve_tokens.append(canonical)
+
+        for entry in sve_entries:
+            for key in ('sve_id', 'id', 'tipo', 'nombre'):
+                register_token(entry.get(key))
+
+        if not empresa_sve_tokens and empresa_detalle:
+            for sve_id in empresa_detalle.get('sve_ids', []):
+                register_token(sve_id)
+
+        logger.info(
+            "Evaluando SVE | empresa_id=%s tokens=%s diagnósticos=%s",
+            empresa_id,
+            empresa_sve_tokens,
+            diagnosticos_codes,
+        )
+        sve_eval = evaluate_sve(diagnosticos_codes, empresa_sve_tokens)
+        result['alertas_sve'] = sve_eval.get('alertas_sve', [])
+        result['derivar_eps'] = sve_eval.get('derivar_eps', [])
+        logger.info(
+            "Resultado SVE | empresa_id=%s alertas=%s derivar_eps=%s",
+            empresa_id,
+            result['alertas_sve'],
+            result['derivar_eps'],
+        )
+
+        processing_id = result.get('id_procesamiento')
+        if processing_id:
+            output_path = processor_service.processed_folder / f"{processing_id}.json"
+            try:
+                with output_path.open('w', encoding='utf-8') as fh:
+                    json.dump(result, fh, ensure_ascii=False, indent=2)
+            except Exception:
+                logger.exception("No se pudo actualizar el consolidado con alertas SVE: %s", output_path)
+
         return jsonify(result), 200
 
     except Exception:

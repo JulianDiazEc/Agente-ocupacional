@@ -3,7 +3,7 @@
  * Enfocada en consolidación de múltiples documentos por persona
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { Card } from '@/components/common/Card';
@@ -13,6 +13,8 @@ import { FileDropzone } from '@/components/upload/FileDropzone';
 import { FileList } from '@/components/upload/FileList';
 import { UploadProgress } from '@/components/upload/UploadProgress';
 import { useProcessing } from '@/contexts';
+import { empresaApi } from '@modules/empresa/services/empresaApi';
+import { EmpresaBase, EmpresaDetail } from '@modules/empresa/types';
 
 /**
  * Componente UploadPage
@@ -23,9 +25,20 @@ export const UploadPage: React.FC = () => {
     useProcessing();
 
   const [files, setFiles] = useState<File[]>([]);
-  const [personId, setPersonId] = useState('');
-  const [empresa, setEmpresa] = useState('Fundación Ser Social');
+  const [empresas, setEmpresas] = useState<EmpresaBase[]>([]);
+  const [empresaId, setEmpresaId] = useState('');
+  const [empresaDetail, setEmpresaDetail] = useState<EmpresaDetail | null>(null);
+  const [gesId, setGesId] = useState('');
+  const [cargo, setCargo] = useState('');
   const [documento, setDocumento] = useState('');
+  const [empresasLoading, setEmpresasLoading] = useState(true);
+  const [empresaDetailLoading, setEmpresaDetailLoading] = useState(false);
+  const [empresaError, setEmpresaError] = useState<string | null>(null);
+
+  const selectedGes = useMemo(() => {
+    if (!empresaDetail || !gesId) return null;
+    return empresaDetail.ges.find((ges) => ges.id === gesId) || null;
+  }, [empresaDetail, gesId]);
 
   /**
    * Manejar cambio de archivos
@@ -45,11 +58,13 @@ export const UploadPage: React.FC = () => {
    * Procesar archivos
    */
   const handleProcess = async () => {
-    if (files.length === 0) return;
+    if (files.length === 0 || !empresaDetail || !empresaId) return;
     await processPersonDocuments(files, {
-      personId: personId || undefined,
-      empresa,
+      empresaId,
+      empresaNombre: empresaDetail.nombre,
       documento,
+      gesId: gesId || undefined,
+      cargo: cargo || undefined,
     });
   };
 
@@ -59,9 +74,9 @@ export const UploadPage: React.FC = () => {
   const handleReset = () => {
     reset();
     setFiles([]);
-    setPersonId('');
-    setEmpresa('Fundación Ser Social');
     setDocumento('');
+    setGesId('');
+    setCargo('');
   };
 
   /**
@@ -86,6 +101,85 @@ export const UploadPage: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [status, result]);
+
+  /**
+   * Cargar empresas al iniciar
+   */
+  useEffect(() => {
+    const fetchEmpresas = async () => {
+      setEmpresasLoading(true);
+      setEmpresaError(null);
+      try {
+        const data = await empresaApi.getEmpresas();
+        setEmpresas(data);
+        setEmpresaId((prev) => prev || (data[0]?.id || ''));
+      } catch (err) {
+        console.error('Error cargando empresas', err);
+        setEmpresaError('No se pudieron cargar las empresas disponibles');
+      } finally {
+        setEmpresasLoading(false);
+      }
+    };
+
+    fetchEmpresas();
+  }, []);
+
+  /**
+   * Cargar detalle de la empresa seleccionada
+   */
+  useEffect(() => {
+    const fetchDetalle = async () => {
+      if (!empresaId) {
+        setEmpresaDetail(null);
+        setGesId('');
+        setCargo('');
+        return;
+      }
+      setEmpresaDetailLoading(true);
+      setEmpresaError(null);
+      try {
+        const detail = await empresaApi.getEmpresa(empresaId);
+        setEmpresaDetail(detail);
+        setGesId((prev) => {
+          if (prev && detail.ges.some((ges) => ges.id === prev)) {
+            return prev;
+          }
+          return detail.ges[0]?.id || '';
+        });
+      } catch (err) {
+        console.error('Error cargando detalle de empresa', err);
+        setEmpresaDetail(null);
+        setGesId('');
+        setCargo('');
+        setEmpresaError('No se pudo cargar la información de la empresa seleccionada');
+      } finally {
+        setEmpresaDetailLoading(false);
+      }
+    };
+
+    fetchDetalle();
+  }, [empresaId]);
+
+  /**
+   * Ajustar cargo cuando cambia el GES
+   */
+  useEffect(() => {
+    if (!selectedGes) {
+      setCargo('');
+      return;
+    }
+    const cargosDisponibles = selectedGes.cargos || [];
+    if (cargosDisponibles.length === 0) {
+      setCargo('');
+      return;
+    }
+    setCargo((prev) => (prev && cargosDisponibles.includes(prev) ? prev : cargosDisponibles[0]));
+  }, [selectedGes]);
+
+  const empresaListaVacia = !empresasLoading && empresas.length === 0;
+  const empresaSeleccionadaNombre = empresaDetail?.nombre || '';
+  const puedeProcesar =
+    files.length > 0 && !!documento.trim() && !!empresaId && !!empresaSeleccionadaNombre;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -141,16 +235,81 @@ export const UploadPage: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Empresa <span className="text-red-500">*</span>
               </label>
-              <select
-                value={empresa}
-                onChange={(e) => setEmpresa(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value="Fundación Ser Social">Fundación Ser Social</option>
-              </select>
+              {empresasLoading ? (
+                <p className="text-sm text-gray-500">Cargando empresas...</p>
+              ) : empresaListaVacia ? (
+                <p className="text-sm text-gray-500">No hay empresas configuradas aún.</p>
+              ) : (
+                <select
+                  value={empresaId}
+                  onChange={(e) => setEmpresaId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  {empresas.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="text-xs text-gray-500 mt-1">Selecciona la empresa del empleado</p>
+              {empresaError && (
+                <p className="text-xs text-red-600 mt-1">{empresaError}</p>
+              )}
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Grupo de exposición (GES)
+              </label>
+              {empresaDetailLoading ? (
+                <p className="text-sm text-gray-500">Cargando información de la empresa...</p>
+              ) : !empresaDetail ? (
+                <p className="text-sm text-gray-500">Selecciona una empresa para ver sus GES.</p>
+              ) : empresaDetail.ges.length === 0 ? (
+                <p className="text-sm text-gray-500">Esta empresa no tiene GES configurados.</p>
+              ) : (
+                <select
+                  value={gesId}
+                  onChange={(e) => setGesId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {empresaDetail.ges.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
               <p className="text-xs text-gray-500 mt-1">
-                Selecciona la empresa del empleado
+                Elige el grupo de exposición similar asociado al empleado
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Cargo asociado
+              </label>
+              {selectedGes && (selectedGes.cargos?.length || 0) > 0 ? (
+                <select
+                  value={cargo}
+                  onChange={(e) => setCargo(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {(selectedGes.cargos || []).map((cargoItem) => (
+                    <option key={cargoItem} value={cargoItem}>
+                      {cargoItem}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  No hay cargos asociados al GES seleccionado. Se enviará vacío.
+                </p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                Se enviará junto con los archivos para enriquecer el consolidado
               </p>
             </div>
 
@@ -168,22 +327,6 @@ export const UploadPage: React.FC = () => {
               />
               <p className="text-xs text-gray-500 mt-1">
                 Ingresa el número de documento del empleado
-              </p>
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                ID del Paciente (opcional)
-              </label>
-              <input
-                type="text"
-                value={personId}
-                onChange={(e) => setPersonId(e.target.value)}
-                placeholder="Ej: CC-12345678, HC-001"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Si no lo especificas, se generará automáticamente un ID único
               </p>
             </div>
 
@@ -229,7 +372,7 @@ export const UploadPage: React.FC = () => {
                 variant="primary"
                 icon={<Upload />}
                 onClick={handleProcess}
-                disabled={files.length === 0 || !documento.trim()}
+                disabled={!puedeProcesar}
               >
                 Procesar Documentos
               </Button>

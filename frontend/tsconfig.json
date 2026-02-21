@@ -31,7 +31,8 @@
       "@hooks/*": ["./src/hooks/*"],
       "@utils/*": ["./src/utils/*"],
       "@contexts/*": ["./src/contexts/*"],
-      "@theme/*": ["./src/theme/*"]
+      "@theme/*": ["./src/theme/*"],
+      "@modules/*": ["./src/modules/*"]
     }
   },
   "include": ["src"],
